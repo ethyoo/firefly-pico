@@ -3,3 +3,6 @@ rules:
   - base: dev
     upstream: cioraneanu:dev
     mergeMethod: hardreset
+  - base: pull
+    upstream: cioraneanu:main
+    mergeMethod: merge
