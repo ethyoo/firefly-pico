@@ -12,13 +12,12 @@
 
     <transaction-type-tabs v-model="type" class="mx-3 mt-1 mb-1" />
 
-    <van-form class="transaction-form-group" ref="form" @submit="saveItem" @failed="onValidationError">
+    <van-form :disabled="isSplitTransaction" :name="formName" class="transaction-form-group" ref="form" @submit="saveItem" @failed="onValidationError">
       <van-cell-group inset class="mt-0 flex-column display-flex">
-        <template #title v-if="isSplitPayment">
-          <div>
-            <van-tag class="ml-5" type="warning">Split payment</van-tag>
-          </div>
-        </template>
+
+        <div v-if="isSplitTransaction" class="display-flex ml-3 mt-3">
+          <transaction-split-badge />
+        </div>
 
         <transaction-amount-field
           required
@@ -28,8 +27,10 @@
           :currencyForeign="destinationCurrencyCode"
           :isForeignAmountVisible="isForeignAmountVisible"
           ref="refAmount"
+          name="amount"
           :rules="[{ required: true, message: 'Amount is required' }]"
           :style="getStyleForField(FORM_CONSTANTS_TRANSACTION_FIELDS.TRANSACTION_FORM_FIELD_AMOUNT)"
+          :disabled="isSplitTransaction"
         />
 
         <account-select
@@ -62,6 +63,7 @@
         <app-field
           v-model="description"
           label="Description"
+          name="description"
           type="textarea"
           rows="1"
           autosize
@@ -75,9 +77,9 @@
         <tag-select v-model="tags" :style="getStyleForField(FORM_CONSTANTS_TRANSACTION_FIELDS.TRANSACTION_FORM_FIELD_TAG)" />
 
         <div :style="getStyleForField(FORM_CONSTANTS_TRANSACTION_FIELDS.TRANSACTION_FORM_FIELD_DATE)">
-          <app-date-time-grid v-model="date" :rules="[{ required: true, message: 'Date is required' }]" required />
+          <app-date-time-grid v-model="date" name="date" :rules="[{ required: true, message: 'Date is required' }]" required />
 
-          <div class="px-3 flex-center-vertical gap-1">
+          <div v-if="!isSplitTransaction" class="px-3 flex-center-vertical gap-1">
             <van-button size="small" @click="onSubDay">-1 day</van-button>
             <van-button size="small" @click="onToday">Today</van-button>
             <van-button size="small" @click="onAddDay">+1 day</van-button>
@@ -99,31 +101,27 @@
       </van-cell-group>
 
       <div style="margin: 16px; position: relative">
-        <app-button-form-delete class="mt-10" v-if="itemId" @click="onDelete" />
+        <app-button-form-delete class="mt-10" v-if="itemId && !isSplitTransaction" @click="onDelete" />
 
         <div class="display-flex gap-1">
-          <van-button v-if="itemId && !isSplitPayment" @click="onCreateClone" block type="default" class="mt-2 flex-1">
+          <van-button v-if="itemId && !isSplitTransaction" @click="onCreateClone" block type="default" class="mt-2 flex-1">
             <app-icon :icon="TablerIconConstants.clone" />
             Clone
           </van-button>
 
-          <van-button v-if="itemId && !isSplitPayment" @click="onCreateTransactionTemplate" block type="default" class="mt-2 flex-1">
+          <van-button v-if="itemId && !isSplitTransaction" @click="onCreateTransactionTemplate" block type="default" class="mt-2 flex-1">
             <app-icon :icon="TablerIconConstants.transactionTemplate" />
             Make template
           </van-button>
         </div>
-
-
       </div>
 
-      <app-button-form-save />
+      <app-button-form-save v-if="!isSplitTransaction" />
     </van-form>
-
 
     <app-card-info style="order: 99">
       <app-field-link label="Configure fields" :icon="TablerIconConstants.settings" @click="navigateTo(RouteConstants.ROUTE_SETTINGS_TRANSACTION_FIELDS_ORDER)" />
     </app-card-info>
-
   </div>
 </template>
 
@@ -151,6 +149,7 @@ import tag from '~/models/Tag'
 import { addDays, endOfMonth, startOfMonth } from 'date-fns'
 import TransactionRepository from '~/repository/TransactionRepository.js'
 import TransactionTransformer from '~/transformers/TransactionTransformer.js'
+import TransactionSplitBadge from '~/components/transaction/transaction-split-badge.vue'
 
 const refAmount = ref(null)
 
@@ -164,7 +163,7 @@ const form = ref(null)
 const showTransactionVoice = ref(false)
 // const selectedTransactionTemplate = ref(null)
 
-let { itemId, item, isEmpty, title, addButtonText, isLoading, onClickBack, saveItem, onDelete, onNew, onValidationError } = useForm({
+let { itemId, item, isEmpty, title, addButtonText, isLoading, onClickBack, saveItem, onDelete, onNew, onValidationError, formName } = useForm({
   form: form,
   titleAdd: 'Add transaction',
   titleEdit: 'Edit transaction',
@@ -192,7 +191,7 @@ const { amount, amountForeign, date, tags, description, notes, budget, accountSo
 
 const transactions = computed(() => _.get(item.value, 'attributes.transactions', []))
 const firstTransaction = computed(() => _.head(transactions.value))
-const isSplitPayment = computed(() => transactions.value.length > 1)
+const isSplitTransaction = computed(() => transactions.value.length > 1)
 const accountSourceAllowedTypes = computed(() => Account.getAccountTypesForTransactionTypeSource(type.value))
 const accountDestinationAllowedTypes = computed(() => Account.getAccountTypesForTransactionTypeDestination(type.value))
 // const accountSourceAllowedTypes = computed(() => [])
@@ -231,9 +230,6 @@ const onCreateTransactionTemplate = async () => {
 const onCreateClone = async () => {
   await navigateTo(`${RouteConstants.ROUTE_TRANSACTION_ID}?transaction_id=${itemId.value}`)
 }
-
-
-
 
 const onTransactionTemplateSelected = (transactionTemplate) => {
   if (!transactionTemplate) {
@@ -290,10 +286,16 @@ watch(tags, async (newValue) => {
   }
 })
 
-const onAssistant = async ({ tag: newTag, category: newCategory, transactionTemplate: transactionTemplate, amount: newAmount, description: newDescription }) => {
+const resetFormFields = () => {
+  accountSource.value = isTypeIncome.value ? profileStore.defaultAccountDestination : profileStore.defaultAccountSource
+  accountDestination.value = isTypeIncome.value ? profileStore.defaultAccountSource : profileStore.defaultAccountDestination
   tags.value = []
   category.value = null
   description.value = ''
+}
+
+const onAssistant = async ({ tag: newTag, category: newCategory, transactionTemplate: transactionTemplate, amount: newAmount, description: newDescription }) => {
+  resetFormFields()
 
   if (newTag) {
     tags.value = Tag.getTagWithParents(newTag)

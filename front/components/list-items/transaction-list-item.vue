@@ -12,21 +12,27 @@
           <!--          <div class="separator"></div>-->
 
           <div class="second_column flex-1">
+            <div v-if="isSplitPayment && props.isDetailedMode" class="mt-1 display-flex">
+              <transaction-split-badge />
+            </div>
+
             <div class="flex-center-vertical gap-2">
-              <transaction-type-dot :transactionType="transactionType"/>
+              <transaction-type-dot :transactionType="transactionType" class="ml-5" />
               <div v-if="description" class="list-item-title">{{ description }}</div>
             </div>
 
             <div class="flex-column">
-              <div v-for="displayedAccount in displayedAccountNames" class="list-item-subtitle">
-                <app-icon :icon="TablerIconConstants.account" :size="20" />
-                <span>{{ displayedAccount }}</span>
+              <div v-for="displayedAccount in displayedAccounts" class="list-item-subtitle">
+                <app-icon :icon="Account.getIcon(displayedAccount) ?? TablerIconConstants.account" :size="20" />
+                <span>{{ Account.getDisplayName(displayedAccount) }}</span>
               </div>
             </div>
 
-            <div v-if="category && props.isDetailedMode" class="list-item-subtitle">
-              <app-icon :icon="TablerIconConstants.category" :size="20" />
-              {{ category }}
+            <div v-if="categories && props.isDetailedMode" class="list-item-subtitle gap-2">
+              <div v-for="category in categories">
+                <app-icon :icon="Category.getIcon(category) ?? TablerIconConstants.category" :size="20" />
+                {{ Category.getDisplayName(category) }}
+              </div>
             </div>
 
             <div v-if="notes && props.isDetailedMode" class="list-item-subtitle">
@@ -40,33 +46,16 @@
                 <div class="list-item-subtitle ml-5">{{ Tag.getDisplayNameEllipsized(tag, 10) }}</div>
               </div>
             </div>
-
-            <div v-if="isSplitPayment && props.isDetailedMode">
-              <van-tag class="" type="warning"> Split payment </van-tag>
-            </div>
           </div>
-
-          <!--          <div class="separator"></div>-->
 
           <div class="third_column">
             <div class="font-weight-700 text-size-16">{{ transactionAmount }} {{ transactionCurrency }}</div>
 
             <transaction-list-item-hero-icon v-if="props.isDetailedMode" :value="props.value" />
 
-            <!--            <div-->
-            <!--                v-if="heroIcon.length > 0 && props.isDetailedMode"-->
-            <!--                class="hero-icons-section gap-1 flex-center-vertical">-->
-            <!--              <app-icon-->
-            <!--                  v-for="(icon, index) in heroIcon"-->
-            <!--                  :icon="icon"-->
-            <!--                  :size="30"/>-->
-            <!--            </div>-->
-
             <div class="flex-center-vertical text-muted text-size-12">
               {{ dateFormatted }}
             </div>
-
-            <!--            <div v-if="props.isDetailedMode" class="day-of-week" style="margin-top: -2px">{{ dateWeekdayName }}</div>-->
           </div>
         </div>
       </template>
@@ -80,6 +69,7 @@
 
 <script setup>
 import _, { get, isEqual } from 'lodash'
+import Category from '../../models/Category.js'
 import DateUtils from '~/utils/DateUtils'
 import { format } from 'date-fns'
 import Transaction from '~/models/Transaction'
@@ -88,6 +78,8 @@ import TablerIconConstants from '~/constants/TablerIconConstants'
 import Tag from '../../models/Tag.js'
 import Account from '~/models/Account.js'
 import TransactionListItemHeroIcon from '~/components/list-items/transaction-list-item-hero-icon.vue'
+import { uniqBy } from 'lodash/array.js'
+import TransactionSplitBadge from '~/components/transaction/transaction-split-badge.vue'
 
 const props = defineProps({
   value: Object,
@@ -106,26 +98,33 @@ const transactionType = computed(() => _.get(firstTransaction.value, 'type', ' -
 
 const isSplitPayment = computed(() => transactions.value.length > 1)
 
-const displayedAccountNames = computed(() => {
+const displayedAccounts = computed(() => {
   if (isTransactionExpense.value) {
-    return [sourceAccountName.value]
+    return [sourceAccount.value]
   }
   if (isTransactionIncome.value) {
-    return [destinationAccountName.value]
+    return [destinationAccount.value]
   }
-  return [sourceAccountName.value, destinationAccountName.value]
+  return [sourceAccount.value, destinationAccount.value]
 })
 
-const description = computed(() => _.get(firstTransaction.value, 'description', ' - '))
-const category = computed(() => _.get(firstTransaction.value, 'category.attributes.name'))
+const description = computed(() => get(props.value, 'attributes.group_title') ?? get(firstTransaction.value, 'description') ?? ' - ')
+// const category = computed(() => _.get(firstTransaction.value, 'category'))
+const categories = computed(() => {
+  return transactions.value
+    .map((item) => item.category)
+    .flat()
+    .filter(Boolean)
+    .uniqBy('id')
+})
 const notes = computed(() => _.get(firstTransaction.value, 'notes', ' - '))
-// const tags = computed(() => {
-//   let list = firstTransaction.value.tags ?? []
-//   return list.map(item => `${get(item, 'attributes.tag')}`)
-// })
 
 const tags = computed(() => {
-  return firstTransaction.value.tags ?? []
+  return transactions.value
+    .map((item) => item.tags)
+    .flat()
+    .filter(Boolean)
+    .uniqBy('id')
 })
 
 const isTodo = computed(() => tags.value.some((tag) => get(tag, 'attributes.is_todo')))
@@ -146,7 +145,6 @@ const isTransactionExpense = computed(() => isEqual(transactionType.value, Trans
 const isTransactionIncome = computed(() => isEqual(transactionType.value, Transaction.types.income))
 const isTransactionTransfer = computed(() => isEqual(transactionType.value, Transaction.types.transfer))
 
-
 const date = computed(() => DateUtils.autoToDate(_.get(firstTransaction.value, 'date')))
 const dateFormatted = computed(() => DateUtils.dateToUI(date.value))
 const dateMonth = computed(() => (date.value ? format(date.value, 'LLL').toUpperCase() : ''))
@@ -155,20 +153,15 @@ const dateDayOfMonth = computed(() => {
   return date.value ? format(date.value, 'dd') : ''
 })
 
-const sourceAccountName = computed(() => _.get(firstTransaction.value, 'source_name'))
-const destinationAccountName = computed(() => _.get(firstTransaction.value, 'destination_name'))
-
 const destinationAccount = computed(() => {
   let destinationId = get(firstTransaction.value, 'destination_id')
   return get(dataStore.accountDictionary, destinationId)
 })
-const destinationAccountIcon = computed(() => Account.getIcon(destinationAccount.value))
 
 const sourceAccount = computed(() => {
   let sourceId = get(firstTransaction.value, 'source_id')
   return get(dataStore.accountDictionary, sourceId)
 })
-const sourceAccountIcon = computed(() => Account.getIcon(sourceAccount.value))
 
 const onEdit = async (e) => {
   emit('onEdit', props.value)
@@ -182,7 +175,7 @@ const heroIcon = computed(() => {
   // let heroTagIcon =  get(tags.value, '0.attributes.icon.icon')
   let sortedTags = sortByPath(tags.value, 'attributes.parent_id', false)
   let heroTagIcon = get(sortedTags, '0.attributes.icon.icon')
-  let heroAccountIcon = isTransactionExpense.value ? sourceAccountIcon.value : destinationAccountIcon.value
+  let heroAccountIcon = isTransactionExpense.value ? Account.getIcon(sourceAccount.value) : Account.getIcon(destinationAccount.value)
 
   let listOfIcons = [heroTagIcon, heroAccountIcon]
   return listOfIcons.filter((item) => !!item)
