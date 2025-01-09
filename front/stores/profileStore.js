@@ -24,12 +24,18 @@ export const useProfileStore = defineStore('profile', {
       darkTheme: useLocalStorage('darkTheme', false),
       startingPage: useLocalStorage('startingPage', Page.types.transactionNew),
 
+      assistantTodoTagMatcher: useLocalStorage('assistantTodoTagMatcher', '!!'),
+
       defaultAccountSource: useLocalStorage('defaultAccountSource', null, { serializer: StorageSerializers.object }),
       defaultAccountDestination: useLocalStorage('defaultAccountDestination', null, { serializer: StorageSerializers.object }),
       defaultCategory: useLocalStorage('defaultCategory', null, { serializer: StorageSerializers.object }),
 
       defaultTags: useLocalStorage('defaultTags', [], { serializer: StorageSerializers.object }),
       autoAddedTags: useLocalStorage('autoAddedTags', [], { serializer: StorageSerializers.object }),
+
+      transactionListDefaultFilterAccount: useLocalStorage('transactionListDefaultFilterAccount', null, { serializer: StorageSerializers.object }),
+      transactionListDefaultFilterDateStart: useLocalStorage('transactionListDefaultFilterDateStart', null),
+      transactionListDefaultFilterDateEnd: useLocalStorage('transactionListDefaultFilterDateEnd', null),
 
       quickValueButtons: useLocalStorage('quickValueButtons', ['-10', '-1', '+1', '+10']),
       transactionOrderedFieldsList: useLocalStorage('transactionOrderedFieldsList', FORM_CONSTANTS_TRANSACTION_FIELDS_LIST),
@@ -44,6 +50,8 @@ export const useProfileStore = defineStore('profile', {
       showTagSelectAsGrid: useLocalStorage('showTagSelectAsGrid', true),
 
       numberFormat: useLocalStorage('numberFormat', NUMBER_FORMAT.eu),
+      weekStartsOn: useLocalStorage('weekStartsOn', 0),
+
       lowerCaseTransactionDescription: useLocalStorage('lowerCaseTransactionDescription', false),
       lowerCaseAccountName: useLocalStorage('lowerCaseAccountName', false),
       lowerCaseCategoryName: useLocalStorage('lowerCaseCategoryName', true),
@@ -111,6 +119,6 @@ export const useProfileStore = defineStore('profile', {
       if (profileStore.dashboardOrderedCardsList.length !== DASHBOARD_SECTIONS_LIST.length) {
         profileStore.dashboardOrderedCardsList = DASHBOARD_SECTIONS_LIST
       }
-    }
+    },
   },
 })

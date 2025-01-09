@@ -53,7 +53,13 @@ import {
   IconMoneybag,
   IconBasket,
   IconCopy,
-  IconLock
+  IconLock,
+  IconMessageChatbot,
+  IconAdjustmentsAlt,
+  IconFilter,
+  IconForms,
+  IconMenuOrder,
+  IconBusinessplan
 } from '@tabler/icons-vue'
 
 export default defineNuxtPlugin((nuxtApp) => {
@@ -111,6 +117,12 @@ export default defineNuxtPlugin((nuxtApp) => {
   nuxtApp.vueApp.component('IconBasket', IconBasket)
   nuxtApp.vueApp.component('IconCopy', IconCopy)
   nuxtApp.vueApp.component('IconLock', IconLock)
+  nuxtApp.vueApp.component('IconMessageChatbot', IconMessageChatbot)
+  nuxtApp.vueApp.component('IconAdjustmentsAlt', IconAdjustmentsAlt)
+  nuxtApp.vueApp.component('IconFilter', IconFilter)
+  nuxtApp.vueApp.component('IconForms', IconForms)
+  nuxtApp.vueApp.component('IconMenuOrder', IconMenuOrder)
+  nuxtApp.vueApp.component('IconBusinessplan', IconBusinessplan)
 
   // for (let iconName in tablerIcons) {
   //   nuxtApp.vueApp.component(iconName, tablerIcons[iconName])

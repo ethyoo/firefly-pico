@@ -8,7 +8,7 @@
 
     <div class="mb-10" />
 
-    <transaction-assistant v-if="!itemId" @change="onAssistant" />
+    <transaction-assistant v-if="!itemId" @change="onAssistant" @keyup.enter="saveItem" />
 
     <transaction-type-tabs v-model="type" class="mx-3 mt-1 mb-1" />
 
@@ -43,7 +43,7 @@
           <template #label>
             <div class="flex-center-vertical gap-1">
               <div class="flex-1">Source account</div>
-              <van-button v-if="showSourceAccountSuggestion" @click="navigateTo(RouteConstants.ROUTE_SETTINGS_TRANSACTION_DEFAULT_VALUES)" size="mini" class="suggestion-button"
+              <van-button v-if="showSourceAccountSuggestion" @click="navigateTo(RouteConstants.ROUTE_SETTINGS_TRANSACTION_DEFAULT_FORM_VALUES)" size="mini" class="suggestion-button"
                 >Set your default
               </van-button>
             </div>
@@ -294,12 +294,15 @@ const resetFormFields = () => {
   description.value = ''
 }
 
-const onAssistant = async ({ tag: newTag, category: newCategory, transactionTemplate: transactionTemplate, amount: newAmount, description: newDescription }) => {
+const onAssistant = async ({ tag: newTag, category: newCategory, transactionTemplate: transactionTemplate, amount: newAmount, description: newDescription, isTodo: newIsTodo }) => {
   resetFormFields()
 
   if (newTag) {
     tags.value = Tag.getTagWithParents(newTag)
-    // tags.value = [newTag]
+  }
+
+  if (newIsTodo && dataStore.tagTodo) {
+    tags.value = [...tags.value, dataStore.tagTodo]
   }
 
   if (newCategory) {

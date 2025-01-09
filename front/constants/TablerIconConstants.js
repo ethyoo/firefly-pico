@@ -14,6 +14,8 @@ export const icons = {
   transactionTemplate: 'IconTemplate',
   dashboard: 'IconDeviceDesktopAnalytics',
   exchangeRates: 'IconReplace',
+  assistant: 'IconMessageChatbot',
+
 
   settingsAppConfig: 'IconTool',
   settingsUserPreferences: 'IconMoodCog',
@@ -60,12 +62,19 @@ export const icons = {
   fieldText1: 'IconBlockquote',
   fieldText2: 'IconWriting',
 
+
   article: 'IconArticle',
   key: 'IconKey',
 
   eyeHidden: 'IconEyeX',
   eyeVisible: 'IconEye',
   lock: 'IconLock',
+
+  filter: 'IconFilter',
+  search: 'IconAdjustmentsAlt',
+  form: 'IconForms',
+  order: 'IconMenuOrder',
+  amountButtons: 'IconBusinessplan',
 
 
   // ------ Icon Select -----

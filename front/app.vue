@@ -14,6 +14,8 @@ import RouteConstants from '~/constants/RouteConstants'
 
 import '~/assets/styles/variables.css'
 import AppLoading from '~/components/ui-kit/app-loading.vue'
+import profile from '~/models/Profile.js'
+import { setDefaultOptions } from 'date-fns'
 
 let dataStore = useDataStore()
 let profileStore = useProfileStore()
@@ -26,11 +28,13 @@ onMounted(async () => {
     navigateTo(`${RouteConstants.ROUTE_SETTINGS_SETUP}`)
     return
   }
+  await dataStore.init()
 
   appStore.fetchLatestAppVersion()
   await profileStore.fetchProfile()
   await dataStore.syncEverythingIfOld()
 })
+
 
 const { isLoading } = storeToRefs(dataStore)
 UIUtils.showLoadingWhen(isLoading)
