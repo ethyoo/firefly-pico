@@ -14,7 +14,7 @@
       <!--      <template #input v-if="isMultiSelect">-->
       <template #input>
         <slot name="input">
-          <div v-if="isEmpty" class="text-placeholder">No selection...</div>
+          <div v-if="isEmpty" class="text-placeholder">{{ $t('select_is_empty') }}</div>
           <div class="display-flex flex-wrap" style="gap: 4px">
             <div v-for="item in modelValueList" class="app-select-option-tag flex-center-vertical gap-2">
               <slot name="inputItemContent" :item="item">
@@ -32,7 +32,7 @@
         <div v-if="props.popupTitle" class="van-popup-title">{{ props.popupTitle }}</div>
 
         <div v-if="hasSearch" style="margin-right: 12px" class="p-1 flex-center-vertical gap-1">
-          <van-search v-model="search" placeholder="Search..." class="flex-1" />
+          <van-search v-model="search" :placeholder="$t('search_placeholder')" class="flex-1" />
 
           <slot name="top-right"></slot>
         </div>
@@ -43,11 +43,7 @@
               <template v-for="(item, index) in list" :key="index">
                 <van-grid-item @click="onSelectCell(item)" style="cursor: pointer" :class="getOptionClass(item)">
                   <template #default>
-                    <slot name="item" :item="item">
-                      <!--                      <div class="">-->
-                      <!--                      {{ getDisplayName(item) }}-->
-                      <!--                      </div>-->
-
+                    <slot name="item" :item="item" :isActive="isItemSelected(item)">
                       <app-select-option :text="getDisplayName(item)" />
                     </slot>
                   </template>
@@ -194,7 +190,8 @@ const onSelectCell = (item) => {
     }
     modelValue.value = newValue
   } else {
-    modelValue.value = isEqual(modelValue.value, item) ? null : item
+    let sameOptionClicked =  isEqual(modelValue.value, item)
+    modelValue.value = sameOptionClicked ? ( isClearable.value ? null:  item ) : item
     showDropdown.value = false
   }
 }

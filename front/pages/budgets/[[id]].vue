@@ -7,43 +7,29 @@
     </app-top-toolbar>
 
     <van-form ref="form" :name="formName" @submit="saveItem" @failed="onValidationError" class="">
-
       <app-card-info v-if="itemId">
-        <div class="van-cell-group-title">Status:</div>
+        <div class="van-cell-group-title">{{ $t('status') }}:</div>
         <div class="px-3 pb-15 flex-column text-size-12">
-          <div>Spent: {{ budgetLimitSpent }} / {{ budgetLimitAmount }} {{ budgetCurrencySymbol }}</div>
-          <div>Percent: {{ budgetLimitPercent }} %</div>
-          <div>Interval: {{ budgetLimitInterval }}</div>
+          <div>{{ $t('budget_page.spent') }}: {{ budgetLimitSpent }} / {{ budgetLimitAmount }} {{ budgetCurrencySymbol }}</div>
+          <div>{{ $t('budget_page.percent') }}: {{ budgetLimitPercent }} %</div>
+          <div>{{ $t('budget_page.interval') }}: {{ budgetLimitInterval }}</div>
         </div>
-        <app-field-link label="Show transactions" :icon="TablerIconConstants.transaction" @click="navigateTo(`${RouteConstants.ROUTE_TRANSACTION_LIST}?budget_id=${itemId}`)" />
-
+        <app-field-link :label="$t('show_transactions')" :icon="TablerIconConstants.transaction" @click="onNavigateToTransactionsList" />
       </app-card-info>
 
-
       <van-cell-group inset>
-        <app-field
-          v-model="name"
-          name="Name"
-          label="Name"
-          rows="1"
-          autosize
-          :icon="TablerIconConstants.fieldText2"
-          placeholder="Description"
-          :rules="[{ required: true, message: 'Name is required' }]"
-        />
+        <app-field v-model="name" name="Name" :label="$t('name')" rows="1" autosize :icon="TablerIconConstants.fieldText2" :rules="[rule.required()]" />
 
         <icon-select v-model="icon" />
 
-        <budget-type-select v-model="type" name="budgetType" :rules="[{ required: true, message: 'Type is required' }]" required />
+        <budget-type-select v-model="type" name="budgetType" :rules="[rule.required()]" required />
 
         <template v-if="isPeriodVisible">
-          <budget-period-select v-model="period" name="budgetPeriod" :rules="[{ required: true, message: 'Type is required' }]" required />
-          <currency-select v-model="currency" name="currency" :rules="[{ required: true, message: 'Field is required' }]" required />
-          <app-field v-model="amount" name="amount" label="Amount" placeholder="Amount" :icon="TablerIconConstants.cashBanknote" :rules="[{ required: true, message: 'Amount is required' }]" />
+          <budget-period-select v-model="period" name="budgetPeriod" :rules="[rule.required()]" required />
+          <currency-select v-model="currency" name="currency" :rules="[rule.required()]" required />
+          <app-field v-model="amount" name="amount" :label="$t('amount')" :icon="TablerIconConstants.cashBanknote" :rules="[rule.required()]" />
         </template>
       </van-cell-group>
-
-
 
       <div style="margin: 16px">
         <app-button-form-save />
@@ -51,8 +37,6 @@
         <app-button-form-delete class="mt-10" v-if="itemId" @click="onDelete" />
       </div>
     </van-form>
-
-
   </div>
 </template>
 
@@ -72,6 +56,7 @@ import BudgetTransformer from '~/transformers/BudgetTransformer.js'
 import Budget from '~/models/Budget.js'
 import AccountTypeSelect from '~/components/select/account/account-type-select.vue'
 import BudgetLimit from '~/models/BudgetLimit.js'
+import { rule } from '~/utils/ValidationUtils.js'
 
 let dataStore = useDataStore()
 let profileStore = useProfileStore()
@@ -97,7 +82,6 @@ const budgetLimitAmount = computed(() => get(budgetLimit.value, `attributes.amou
 const budgetLimitInterval = computed(() => BudgetLimit.getLimitInterval(budgetLimit.value))
 const budgetCurrencySymbol = computed(() => Budget.getCurrencySymbol(item.value))
 
-
 const onEvent = (event, payload) => {
   if (event === 'onPostSave') {
     let newItem = _.get(payload, 'data.data')
@@ -109,10 +93,8 @@ const onEvent = (event, payload) => {
   }
 }
 
-let { itemId, item, isEmpty, title, addButtonText, isLoading, onClickBack, saveItem, onDelete, onNew, onValidationError, formName } = useForm({
+let { itemId, item, isEmpty, addButtonText, isLoading, onClickBack, saveItem, onDelete, onNew, onValidationError, formName } = useForm({
   form: form,
-  titleAdd: 'Add budget',
-  titleEdit: 'Edit budget',
   routeList: RouteConstants.ROUTE_BUDGET_LIST,
   routeForm: RouteConstants.ROUTE_BUDGET_ID,
   model: new Budget(),
@@ -137,10 +119,15 @@ watch(name, (newValue) => {
   name.value = newValue
 })
 
+const onNavigateToTransactionsList = async () => {
+  let filters = TransactionFilterUtils.filters.budget.toUrl(item.value)
+  await navigateTo(`${RouteConstants.ROUTE_TRANSACTION_LIST}?${filters}`)
+}
+
 const toolbar = useToolbar()
+const { t } = useI18n()
 toolbar.init({
-  title: title,
-  leftText: 'List',
+  title: itemId.value ? t('budget_page.title_edit') : t('budget_page.title_add'),
   backRoute: RouteConstants.ROUTE_BUDGET_LIST,
 })
 </script>

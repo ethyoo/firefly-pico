@@ -1,7 +1,7 @@
 <template>
   <app-select
-    :label="label"
-    popupTitle="Select a currency"
+    :label="props.label ?? $t('currency')"
+    :popupTitle="$t('currency_select.title')"
     v-model="modelValue"
     v-model:showDropdown="showDropdown"
     v-model:search="search"
@@ -10,6 +10,10 @@
     :getDisplayValue="getDisplayValue"
     v-bind="dynamicAttrs"
   >
+    <template #left-icon>
+      <app-icon :icon="TablerIconConstants.currency" :size="20" />
+    </template>
+
     <template #top-right>
       <van-button size="small" @click="onRefresh" class="">
         <app-icon :icon="TablerIconConstants.refresh" :stroke="1.7" size="14" />
@@ -38,13 +42,13 @@ const { dynamicAttrs } = useFormAttributes(attrs)
 const props = defineProps({
   label: {
     type: String,
-    default: 'Currency',
   },
 })
 
 const modelValue = defineModel()
 const showDropdown = ref(false)
 const search = ref('')
+
 
 let list = ref([])
 
@@ -57,25 +61,11 @@ const filteredList = computed(() => {
   })
 })
 
-// const categoryList = computed(() => {
-//   if (search.value.length === 0) {
-//     return dataStore.categoryList
-//   }
-//   return dataStore.categoryList.filter(item => {
-//     return Currency.getDisplayName(item).toUpperCase().indexOf(search.value.toUpperCase()) !== -1
-//   })
-// })
-
 // ------ Methods ------
 
 onMounted(async () => {
   list.value = dataStore.currenciesList.filter((item) => get(item, 'attributes.enabled'))
 })
-
-const onSelectCell = (value) => {
-  modelValue.value = value
-  showDropdown.value = false
-}
 
 const getDisplayValue = (value) => {
   return Currency.getDisplayName(value)

@@ -4,9 +4,10 @@ import AccountTransformer from '~/transformers/AccountTransformer'
 import AccountRepository from '~/repository/AccountRepository'
 import _, { get } from 'lodash'
 import Transaction from '~/models/Transaction'
-import { NUMBER_FORMAT } from '~/utils/MathUtils.js'
+import { NUMBER_FORMAT } from '~/utils/NumberUtils.js'
+import Currency from '~/models/Currency.js'
 
-class Account extends BaseModel {
+export default class Account extends BaseModel {
   getTransformer() {
     return AccountTransformer
   }
@@ -20,8 +21,8 @@ class Account extends BaseModel {
       attributes: {
         name: '',
         icon: null,
-        type: null,
-        role: null,
+        type: Account.types.asset,
+        account_role: Account.roleAssets.default,
         include_net_worth: true,
         is_dashboard_visible: true,
       },
@@ -31,7 +32,6 @@ class Account extends BaseModel {
   // ------------
 
   getFake(id) {
-
     if (process.env.NODE_ENV === 'production') {
       return {}
     }
@@ -84,21 +84,35 @@ class Account extends BaseModel {
 
   static get types() {
     return {
-      cash: {
-        name: 'Cash',
-        fireflyCode: 'cash',
-      },
       asset: {
+        order: 1,
         name: 'Asset',
+        t: 'account_page.account_type_asset',
         fireflyCode: 'asset',
       },
+      revenue: {
+        order: 2,
+        name: 'Revenue',
+        t: 'account_page.account_type_revenue',
+        fireflyCode: 'revenue',
+      },
       expense: {
+        order: 3,
         name: 'Expense',
+        t: 'account_page.account_type_expense',
         fireflyCode: 'expense',
       },
-      revenue: {
-        name: 'Revenue',
-        fireflyCode: 'revenue',
+      liability: {
+        order: 4,
+        name: 'Liability',
+        t: 'account_page.account_type_liability',
+        fireflyCode: 'liabilities',
+      },
+      cash: {
+        order: 5,
+        name: 'Cash',
+        t: 'account_page.account_type_cash',
+        fireflyCode: 'cash',
       },
     }
   }
@@ -113,22 +127,27 @@ class Account extends BaseModel {
     return {
       default: {
         name: 'Default',
+        t: 'account_page.account_role_default',
         fireflyCode: 'defaultAsset',
       },
       shared: {
         name: 'Shared',
+        t: 'account_page.account_role_shared',
         fireflyCode: 'sharedAsset',
       },
       saving: {
         name: 'Savings',
+        t: 'account_page.account_role_savings',
         fireflyCode: 'savingAsset',
       },
       creditCard: {
         name: 'Credit card',
+        t: 'account_page.account_role_credit_card',
         fireflyCode: 'ccAsset',
       },
       cash: {
         name: 'Cash',
+        t: 'account_page.account_type_cash',
         fireflyCode: 'cashWalletAsset',
       },
     }
@@ -138,16 +157,61 @@ class Account extends BaseModel {
     return Object.values(this.roleAssets)
   }
 
+  // ------------
+  static get liabilityType() {
+    return {
+      debt: {
+        name: 'Debt',
+        fireflyCode: 'debt',
+      },
+      loan: {
+        name: 'Loan',
+        fireflyCode: 'loan',
+      },
+      mortgage: {
+        name: 'Mortgage',
+        fireflyCode: 'mortgage',
+      },
+    }
+  }
+
+  static liabilityTypesList() {
+    return Object.values(this.liabilityType)
+  }
+
+  static get liabilityDirection() {
+    return {
+      debit: {
+        name: 'I owe this to somebody else',
+        fireflyCode: 'debit',
+      },
+      credit: {
+        name: 'I am own this debt',
+        fireflyCode: 'credit',
+      },
+    }
+  }
+
+  static liabilityDirectionsList() {
+    return Object.values(this.liabilityDirection)
+  }
+
+  // ------------
+
   static getDisplayName(account) {
     return _.get(account, 'attributes.name')
   }
 
   static getCurrency(account) {
-    return get(account, 'attributes.currency_symbol')
+    if (!account) {
+      return null
+    }
+    return get(account, 'attributes.currency')
   }
 
-  static getCurrencyId(account) {
-    return get(account, 'attributes.currency_id')
+  static getCurrencySymbol(account) {
+    let currency = this.getCurrency(account)
+    return Currency.getSymbol(currency)
   }
 
   static getBalance(account) {
@@ -159,13 +223,13 @@ class Account extends BaseModel {
     let digits = profileStore.dashboard.showDecimal ? 2 : 0
     let numberFormatCode = profileStore.numberFormat.code ?? NUMBER_FORMAT.eu.code
     let amount = this.getBalance(account)
-
     amount = new Intl.NumberFormat(numberFormatCode, {
       minimumFractionDigits: digits,
       maximumFractionDigits: digits,
     }).format(amount)
 
-    return `${amount} ${this.getCurrency(account)}`
+    let currency = this.getCurrencySymbol(account)
+    return [amount, currency].filter((item) => !!item).join(' ')
   }
 
   static getIsActive(account) {
@@ -193,9 +257,9 @@ class Account extends BaseModel {
     }
     switch (transactionTypeCode) {
       case Transaction.types.income.code:
-        return [Account.types.revenue]
+        return [Account.types.revenue, Account.types.liability]
       case Transaction.types.expense.code:
-        return [Account.types.asset, Account.types.cash]
+        return [Account.types.asset, Account.types.cash, Account.types.liability]
       case Transaction.types.transfer.code:
         return [Account.types.asset]
     }
@@ -209,16 +273,12 @@ class Account extends BaseModel {
     }
     switch (transactionTypeCode) {
       case Transaction.types.income.code:
-        return [Account.types.asset, Account.types.cash]
+        return [Account.types.asset, Account.types.cash, Account.types.liability]
       case Transaction.types.expense.code:
-        return [Account.types.expense]
+        return [Account.types.expense, Account.types.liability]
       case Transaction.types.transfer.code:
-        return [Account.types.asset]
+        return [Account.types.asset, Account.types.liability]
     }
     return []
   }
 }
-
-export default Account
-
-export {}

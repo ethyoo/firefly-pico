@@ -2,18 +2,15 @@ import { defineStore } from 'pinia'
 import { StorageSerializers, useLocalStorage } from '@vueuse/core'
 import * as LanguageConstants from '~/constants/LanguageConstants'
 import DateUtils from '~/utils/DateUtils'
-import { FORM_CONSTANTS_TRANSACTION_FIELDS_LIST } from '~/constants/FormConstants'
-import ResponseUtils from '~/utils/ResponseUtils'
-import { compareVersionStrings } from '~/utils/DataUtils'
-import InfoRepository from '~/repository/InfoRepository.js'
 import { cloneDeep, get, omit } from 'lodash'
-import { HERO_ICONS, HERO_ICONS_LIST } from '~/constants/TransactionConstants.js'
-import { NUMBER_FORMAT } from '~/utils/MathUtils.js'
+import { transactionFormFieldList, transactionListFieldList, transactionListHeroIcon, transactionListHeroIconList } from '~/constants/TransactionConstants.js'
+import { NUMBER_FORMAT } from '~/utils/NumberUtils.js'
 import ProfileRepository from '~/repository/ProfileRepository'
 import ProfileTransformer from '~/transformers/ProfileTransformer'
 import { useAppStore } from '~/stores/appStore.js'
-import { DASHBOARD_SECTIONS_LIST } from '~/constants/DashboardConstants.js'
+import { dashboardCardList } from '~/constants/DashboardConstants.js'
 import Page from '~/models/Page.js'
+import { migrateType } from '~/utils/MigrateUtils.js'
 
 export const useProfileStore = defineStore('profile', {
   state: () => {
@@ -22,13 +19,16 @@ export const useProfileStore = defineStore('profile', {
       loadingMessage: 'Loading...',
 
       darkTheme: useLocalStorage('darkTheme', false),
+      language: useLocalStorage('language', 'en'),
       startingPage: useLocalStorage('startingPage', Page.types.transactionNew),
+      resetFormOnCreate: useLocalStorage('resetFormOnCreate', false),
 
       assistantTodoTagMatcher: useLocalStorage('assistantTodoTagMatcher', '!!'),
 
       defaultAccountSource: useLocalStorage('defaultAccountSource', null, { serializer: StorageSerializers.object }),
       defaultAccountDestination: useLocalStorage('defaultAccountDestination', null, { serializer: StorageSerializers.object }),
       defaultCategory: useLocalStorage('defaultCategory', null, { serializer: StorageSerializers.object }),
+      defaultForeignCurrency: useLocalStorage('defaultForeignCurrency', null, { serializer: StorageSerializers.object }),
 
       defaultTags: useLocalStorage('defaultTags', [], { serializer: StorageSerializers.object }),
       autoAddedTags: useLocalStorage('autoAddedTags', [], { serializer: StorageSerializers.object }),
@@ -37,9 +37,13 @@ export const useProfileStore = defineStore('profile', {
       transactionListDefaultFilterDateStart: useLocalStorage('transactionListDefaultFilterDateStart', null),
       transactionListDefaultFilterDateEnd: useLocalStorage('transactionListDefaultFilterDateEnd', null),
 
+      isForeignCurrencyAlwaysVisible: useLocalStorage('isForeignCurrencyAlwaysVisible', false),
+
       quickValueButtons: useLocalStorage('quickValueButtons', ['-10', '-1', '+1', '+10']),
-      transactionOrderedFieldsList: useLocalStorage('transactionOrderedFieldsList', FORM_CONSTANTS_TRANSACTION_FIELDS_LIST),
-      dashboardOrderedCardsList: useLocalStorage('dashboardOrderedCardsList', DASHBOARD_SECTIONS_LIST),
+
+      transactionFormFieldsConfig: useLocalStorage('transactionFormFieldsConfig', transactionFormFieldList),
+      transactionListFieldsConfig: useLocalStorage('transactionListFieldsConfig', transactionListFieldList),
+      dashboardWidgetsConfig: useLocalStorage('dashboardWidgetsConfig', dashboardCardList),
 
       dateFormat: useLocalStorage('dateFormat', DateUtils.FORMAT_ENGLISH_DATE),
 
@@ -58,10 +62,7 @@ export const useProfileStore = defineStore('profile', {
       lowerCaseTagName: useLocalStorage('lowerCaseTagName', true),
       stripAccents: useLocalStorage('stripAccents', true),
 
-      heroIcons: useLocalStorage(
-        'heroIcons',
-        HERO_ICONS_LIST.filter((item) => [HERO_ICONS.tag, HERO_ICONS.account].includes(item.code)),
-      ),
+      heroIcons: useLocalStorage('heroIcons', [transactionListHeroIcon.tags, transactionListHeroIcon.account]),
 
       dashboard: {
         firstDayOfMonth: useLocalStorage('firstDayOfMonth', 1),
@@ -90,7 +91,7 @@ export const useProfileStore = defineStore('profile', {
       this.$patch(responseData)
       this.isLoading = false
 
-      this.migrateOrderedLists()
+      this.migrateProfile()
     },
 
     async writeProfile() {
@@ -107,18 +108,17 @@ export const useProfileStore = defineStore('profile', {
       this.isLoading = false
     },
 
-    migrateOrderedLists() {
-      // If we add new fields for "transactionOrderedFieldsList" / "dashboardOrderedCardsList"
+    migrateProfile() {
+      // If we add new fields for "transactionFormFieldsConfig" / "dashboardWidgetsConfig"
       // which the user doesn't have in localStorage add them as well
-
       const profileStore = useProfileStore()
-      if (profileStore.transactionOrderedFieldsList.length !== FORM_CONSTANTS_TRANSACTION_FIELDS_LIST.length) {
-        profileStore.transactionOrderedFieldsList = FORM_CONSTANTS_TRANSACTION_FIELDS_LIST
-      }
+      profileStore.transactionFormFieldsConfig = migrateTypeList(profileStore.transactionFormFieldsConfig, transactionFormFieldList)
+      profileStore.transactionListFieldsConfig = migrateTypeList(profileStore.transactionListFieldsConfig, transactionListFieldList)
+      profileStore.dashboardWidgetsConfig = migrateTypeList(profileStore.dashboardWidgetsConfig, dashboardCardList)
+      // profileStore.heroIcons = migrateTypeList(profileStore.heroIcons, transactionListHeroIconList)
 
-      if (profileStore.dashboardOrderedCardsList.length !== DASHBOARD_SECTIONS_LIST.length) {
-        profileStore.dashboardOrderedCardsList = DASHBOARD_SECTIONS_LIST
-      }
+      // If we changed the content of fixed lists update user settings (ex we removed "name" and added "t" to support translations)
+      this.startingPage = migrateType(this.startingPage, Page.typesList())
     },
   },
 })

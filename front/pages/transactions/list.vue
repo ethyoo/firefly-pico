@@ -16,14 +16,13 @@
 
     <div class="applied-filters-container" v-if="filtersDisplayList.length > 0">
       <div class="flex-center-vertical">
-        <div class="title flex-1">Applied filters</div>
-        <van-button @click="onClearFilters" size="small" class=""> Clear</van-button>
+        <div class="title flex-1">{{ $t('filters.applied_filters') }}</div>
+        <van-button @click="onClearFilters" size="small" class="">{{ $t('filters.clear') }}</van-button>
       </div>
 
       <div class="display-flex flex-wrap gap-1">
         <div v-for="appliedFilter in filtersDisplayList" class="tag-filter">
           <app-icon :icon="TablerIconConstants.filter" size="14" :stroke="1.9" />
-
           <span class="ml-5">{{ appliedFilter }}</span>
         </div>
       </div>
@@ -61,6 +60,7 @@ import { animateSwipeList } from '~/utils/AnimationUtils.js'
 import Budget from '~/models/Budget.js'
 import TransactionFilterUtils from '~/utils/TransactionFilterUtils.js'
 import TablerIconConstants from '~/constants/TablerIconConstants.js'
+import { filterBagHasValues, getActiveFilters, getFiltersFromURL, saveToUrl } from '~/utils/FilterUtils.js'
 
 const dataStore = useDataStore()
 const route = useRoute()
@@ -80,8 +80,7 @@ const onCustomGetAll = async ({ page, pageSize }) => {
   })
 }
 
-const { title, isLoading, isFinished, isRefreshing, page, pageSize, totalPages, listTotalCount, list, isEmpty, listPagination, onAdd, onEdit, onDelete, onLoadMore, onRefresh } = useList({
-  title: 'Transactions list',
+const { isLoading, isFinished, isRefreshing, page, pageSize, totalPages, listTotalCount, list, isEmpty, listPagination, onAdd, onEdit, onDelete, onLoadMore, onRefresh } = useList({
   routeList: RouteConstants.ROUTE_TRANSACTION_LIST,
   routeForm: RouteConstants.ROUTE_TRANSACTION_ID,
   model: new Transaction(),
@@ -99,16 +98,17 @@ const formClass = computed(() => ({
 
 let filters = ref({})
 
-let filtersDictionary = computed(() => {
-  return TransactionFilterUtils.getActiveFilters(filters.value)
+let activeFilters = computed(() => {
+  let filterDefinitions = Object.values(TransactionFilterUtils.filters)
+  return getActiveFilters(filterDefinitions, filters.value)
 })
 
 let filtersDisplayList = computed(() => {
-  return filtersDictionary.value.map((item) => item.display)
+  return activeFilters.value.map((item) => item.display)
 })
 
 let filtersBackendList = computed(() => {
-  return filtersDictionary.value.map((item) => item.filter)
+  return activeFilters.value.map((item) => item.filter)
 })
 
 watch(filtersBackendList, (newValue, oldValue) => {
@@ -118,21 +118,30 @@ watch(filtersBackendList, (newValue, oldValue) => {
   onRefresh()
 })
 
+watch(filters, (newValue, oldValue) => {
+  if (isEqual(newValue, oldValue)) {
+    return
+  }
+  saveToUrl(activeFilters.value)
+})
+
 const onClearFilters = () => {
   filters.value = {}
 }
 // let filtersList = computed()
 
+const { t } = useI18n()
 const toolbar = useToolbar()
 toolbar.init({
-  title: 'Transactions list',
-  subtitle: computed(() => `${listTotalCount.value} Items`),
+  title: t('transaction.title_list'),
+  subtitle: computed(() => `${listTotalCount.value} ${t('items')}`),
 })
 
 onMounted(() => {
-  filters.value = TransactionFilterUtils.getFiltersFromURL()
+  let filterDefinitions = Object.values(TransactionFilterUtils.filters)
+  filters.value = getFiltersFromURL(filterDefinitions)
 
-  if (!TransactionFilterUtils.filterHasValues(filters.value)) {
+  if (!filterBagHasValues(filters.value)) {
     filters.value = TransactionFilterUtils.getPredefinedFilters()
   }
 })

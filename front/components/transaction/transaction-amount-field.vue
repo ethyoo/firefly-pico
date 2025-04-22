@@ -3,12 +3,12 @@
     <!--    Amount field    -->
     <div>
       <van-field
-        v-model="modelValue"
-        placeholder="Amount"
+        v-model="amount"
+        :label="$t('amount')"
+        :placeholder="$t('amount')"
         @click="() => inputAmount.focus()"
-        label="Amount"
         class="flex-center-vertical app-field transaction-amount-field"
-        v-bind="attrs"
+        v-bind="amountBindings"
         label-align="top"
       >
         <template #left-icon>
@@ -17,13 +17,13 @@
 
         <template #right-icon>
           <div class="flex-center-vertical gap-2">
-            {{ props.currency }}
+            {{ currencySymbol ?? '' }}
           </div>
         </template>
 
         <template #input>
           <input
-            v-model="modelValue"
+            v-model="amount"
             @focus="onFocus"
             @blur="onBlur"
             ref="inputAmount"
@@ -59,10 +59,8 @@
 
       <!--    Foreign amount field    -->
       <div class="flex-center-vertical">
-        <!--      <app-icon :icon="SvgConstants.custom.exchange" style="width: 22px; margin-left: 16px" />-->
-
         <van-field
-          v-model="modelValueForeign"
+          v-model="amountForeign"
           placeholder="Foreign amount "
           @click="() => inputAmountForeign.focus()"
           label="Foreign amount"
@@ -75,12 +73,12 @@
           </template>
 
           <template #right-icon>
-            {{ props.currencyForeign }}
+            <currency-dropdown v-model="currencyForeign" />
           </template>
 
           <template #input>
             <input
-              v-model="modelValueForeign"
+              v-model="amountForeign"
               ref="inputAmountForeign"
               style="width: 100%; border: none; background: transparent; height: 24px"
               type="text"
@@ -121,13 +119,27 @@ import { useDataStore } from '~/stores/dataStore'
 import { moveInputCursorToEnd, sleep } from '~/utils/VueUtils'
 import { evalMath, removeEndOperators, sanitizeAmount } from '~/utils/MathUtils'
 import TablerIconConstants from '~/constants/TablerIconConstants.js'
+import { cloneDeep, get } from 'lodash'
+import Currency from '~/models/Currency.js'
 
 const profileStore = useProfileStore()
 const dataStore = useDataStore()
 const attrs = useAttrs()
+const amountBindings = computed(() => {
+  return {
+    ...attrs,
+    ...(props.isAmountRequired
+      ? {
+          required: true,
+          rules: [{ required: true, message: 'Amount is required' }],
+        }
+      : {}),
+  }
+})
 
-const modelValue = defineModel()
-const modelValueForeign = defineModel('foreign')
+const amount = defineModel('amount')
+const amountForeign = defineModel('amountForeign')
+const currencyForeign = defineModel('currencyForeign')
 
 const props = defineProps({
   showQuickButtons: {
@@ -135,12 +147,8 @@ const props = defineProps({
     default: true,
   },
   currency: {
-    type: String,
-    default: '',
-  },
-  currencyForeign: {
-    type: String,
-    default: '',
+    type: Object,
+    default: null,
   },
   isForeignAmountVisible: {
     type: Boolean,
@@ -148,9 +156,22 @@ const props = defineProps({
   },
   disabled: {
     type: Boolean,
-    default: false
-  }
+    default: false,
+  },
+  isAmountRequired: {
+    type: Boolean,
+    default: false,
+  },
 })
+
+const currencySymbol = computed(() => Currency.getSymbol(props.currency))
+const currencyForeignSymbol = computed(() => Currency.getSymbol(currencyForeign.value))
+
+const currencyCode = computed(() => Currency.getCode(props.currency))
+const currencyForeignCode = computed(() => Currency.getCode(currencyForeign.value))
+
+const currencyDecimalPlaces = computed(() => Currency.getDecimalPlaces(props.currency))
+const currencyForeignDecimalPlaces = computed(() => Currency.getDecimalPlaces(currencyForeign.value))
 
 const transactionInputClass = computed(() => {
   return {
@@ -167,9 +188,9 @@ const quickButtons = profileStore.quickValueButtons
 const operatorsList = ref(['+', '-', '*', '/'])
 
 const onQuickButton = async (quickButton) => {
-  let value = !modelValue.value || modelValue.value === '' ? '0' : modelValue.value
+  let value = !amount.value || amount.value === '' ? '0' : amount.value
   value = parseInt(value)
-  modelValue.value = `${value + parseInt(quickButton)}`
+  amount.value = `${value + parseInt(quickButton)}`
 }
 
 const onFocus = () => {
@@ -178,7 +199,11 @@ const onFocus = () => {
 
 const onBlur = async () => {
   isInputFocused.value = false
-  modelValue.value = await evaluateModelValue(modelValue.value)
+  let newAmount = await evaluateModelValue(amount.value)
+  if (newAmount) {
+    newAmount = currencyDecimalPlaces.value ? newAmount.toFixed(currencyDecimalPlaces.value) : newAmount.toString()
+  }
+  amount.value = newAmount
 
   // On iOS if you hide the keyboard via the "Done" button, onBlur gets called but it's not actually blurred. This is a temp fix...
   inputAmount.value?.blur()
@@ -201,21 +226,42 @@ const evaluateModelValue = async (amount) => {
   return value
 }
 
-watch(modelValue, (newValue) => {
-  modelValue.value = sanitizeAmount(newValue)
+watch(amount, (newValue) => {
+  amount.value = sanitizeAmount(newValue)
 })
 
 const onOperation = async (operation) => {
-  modelValue.value = sanitizeAmount(modelValue.value + operation)
-  moveInputCursorToEnd(input, modelValue)
+  amount.value = sanitizeAmount(amount.value + operation)
+  moveInputCursorToEnd(input, amount)
+}
+
+const getConversionError = () => {
+  if (!props.currency) {
+    return 'Source currency is required!'
+  }
+  if (!currencyForeign.value) {
+    return 'Foreign currency is required!'
+  }
+}
+
+const isConversionValid = () => {
+  let error = getConversionError()
+  error ? UIUtils.showToastError(error) : null
+  return !error
 }
 
 const convertAmountToForeign = () => {
-  modelValueForeign.value = convertCurrency(modelValue.value, 'RON', 'EUR').toFixed(2)
+  if (!isConversionValid()) {
+    return
+  }
+  amountForeign.value = convertCurrency(amount.value, currencyCode.value, currencyForeignCode.value).toFixed(currencyForeignDecimalPlaces.value)
 }
 
 const convertForeignToAmount = () => {
-  modelValue.value = convertCurrency(modelValueForeign.value, 'EUR', 'RON').toFixed(2)
+  if (!isConversionValid()) {
+    return
+  }
+  amount.value = convertCurrency(amountForeign.value, currencyForeignCode.value, currencyCode.value).toFixed(currencyDecimalPlaces.value)
 }
 
 onMounted(() => {

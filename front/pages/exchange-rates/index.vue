@@ -6,7 +6,8 @@
       <van-cell-group inset>
         <app-list-search v-model="search" />
 
-        <div class="van-cell-group-title">Date: {{ exchangeDate }}</div>
+        <div class="van-cell-group-title mt-5 mb-0">{{ $t('date') }}: {{ exchangeDate }}</div>
+        <div class="text-muted text-size-12 ml-15 mb-10">{{ $t('exchange_rate_page.relative_to_usd') }}</div>
 
         <van-grid :column-num="3">
           <van-grid-item v-for="currency in filteredList">
@@ -65,8 +66,9 @@ const onRefresh = async () => {
 UIUtils.showLoadingWhen(isRefreshing)
 
 const toolbar = useToolbar()
+const { t } = useI18n()
 toolbar.init({
-  title: 'Exchange rates',
+  title: t('exchange_rates'),
   backRoute: RouteConstants.ROUTE_EXTRAS,
 })
 </script>

@@ -1,41 +1,42 @@
 <template>
-  <van-cell-group inset >
-<!--    <div class="flex-center-vertical gap-2">-->
-<!--      <app-icon :icon="TablerIconConstants.leftArrow" @click="onPreviousMonth" :size="24" class="m-20" />-->
-<!--      <div class="flex-1 flex-center text-size-14 font-weight-600">{{ rangeTitle }}</div>-->
-<!--      <app-icon :icon="TablerIconConstants.rightArrow" @click="onNextMonth" :size="24" class="m-20" />-->
-<!--    </div>-->
+  <van-cell-group inset>
+    <div class="van-cell-group-title">{{ $t('dashboard.transactions_summary.title') }}:</div>
 
     <van-grid :column-num="3">
       <dashboard-summary-card
-        @click="onGoToTransactionsByType(Transaction.types.income.code)"
+        @click="onGoToTransactionsByType(Transaction.types.income)"
         :icon="TablerIconConstants.dashboardTotalIncomes"
-        title="Income"
+        :title="$t('transaction.type.income')"
         :subtitle="totalIncomeFormatted"
         subtitleClass="text-success"
       />
 
       <dashboard-summary-card
-        @click="onGoToTransactionsByType(Transaction.types.expense.code)"
+        @click="onGoToTransactionsByType(Transaction.types.expense)"
         :icon="TablerIconConstants.dashboardTotalExpenses"
-        title="Expense"
+        :title="$t('transaction.type.expense')"
         :subtitle="totalExpenseFormatted"
         subtitleClass="text-danger"
       />
 
       <dashboard-summary-card
-        @click="onGoToTransactionsByType(Transaction.types.transfer.code)"
+        @click="onGoToTransactionsByType(Transaction.types.transfer)"
         :icon="TablerIconConstants.dashboardTotalTransfers"
-        title="Transfers"
+        :title="$t('transaction.type.transfer')"
         :subtitle="totalTransferFormatted"
         subtitleClass="text-primary"
       />
 
       <dashboard-summary-card :icon="TablerIconConstants.dashboardTotalSurplus" title="Surplus" :subtitle="totalSurplusFormatted" subtitleClass="" />
+      <dashboard-summary-card :icon="TablerIconConstants.dashboardTransactionsCount" :title="$t('toolbar.transactions')" :subtitle="dataStore.totalTransactionsCount" subtitleClass="" />
+      <dashboard-summary-card :icon="TablerIconConstants.account" :title="$t('dashboard.transactions_summary.days_remaining')" :subtitle="remainingDays" />
+    </van-grid>
 
-      <dashboard-summary-card :icon="TablerIconConstants.dashboardTransactionsCount" title="Transactions" :subtitle="dataStore.totalTransactionsCount" subtitleClass="" />
-
-      <dashboard-summary-card :icon="TablerIconConstants.account" title="Days remaining" :subtitle="remainingDays" />
+    <div class="van-cell-group-title">{{ $t('dashboard.transactions_summary.savings_summary') }}:</div>
+    <van-grid :column-num="3" @click="onNavigateToTransactionSavings">
+      <dashboard-summary-card :icon="TablerIconConstants.dashboardTransactionsCount" :title="$t('toolbar.transactions')" :subtitle="dataStore.transactionsListSavingsCount" subtitleClass="" />
+      <dashboard-summary-card :icon="TablerIconConstants.dashboardCoin" :title="$t('amount')" :subtitle="transactionsListSavingsAmount" :subtitleClass="savingsAmountClass" />
+      <dashboard-summary-card :icon="TablerIconConstants.dashboardSavingsPercent" :title="$t('percentage')" :subtitle="savingsPercentFormatted" subtitleClass="text-primary" />
     </van-grid>
   </van-cell-group>
 </template>
@@ -67,17 +68,20 @@ const remainingDays = computed(() => {
   return differenceInDays(endDate.value, startOfDay(new Date())) + 1
 })
 
-const totalExpenseFormatted = computed(() => getFormattedValue(dataStore.totalExpenseThisMonth))
-const totalIncomeFormatted = computed(() => getFormattedValue(dataStore.totalIncomeThisMonth))
-const totalTransferFormatted = computed(() => getFormattedValue(dataStore.totalTransfersThisMonth))
-const totalSurplusFormatted = computed(() => getFormattedValue(dataStore.totalSurplusThisMonth))
+const totalExpenseFormatted = computed(() => formatNumberForDashboard(dataStore.totalExpenseThisMonth))
+const totalIncomeFormatted = computed(() => formatNumberForDashboard(dataStore.totalIncomeThisMonth))
+const totalTransferFormatted = computed(() => formatNumberForDashboard(dataStore.totalTransfersThisMonth))
+const totalSurplusFormatted = computed(() => formatNumberForDashboard(dataStore.totalSurplusThisMonth))
 
-const onGoToTransactionsByType = async (type) => {
-  const startDate = DateUtils.dateToString(dataStore.dashboardDateStart)
-  const endDate = DateUtils.dateToString(dataStore.dashboardDateEnd)
+const onGoToTransactionsByType = async (transactionType) => {
   let excludedUrl = getExcludedTransactionUrl()
+  let filters = [
+    TransactionFilterUtils.filters.transactionType.toUrl(transactionType),
+    TransactionFilterUtils.filters.dateAfter.toUrl(dataStore.dashboardDateStart),
+    TransactionFilterUtils.filters.dateBefore.toUrl(dataStore.dashboardDateEnd),
+  ].join('&')
 
-  await navigateTo(`${RouteConstants.ROUTE_TRANSACTION_LIST}?type=${type}&date_start=${startDate}&date_end=${endDate}${excludedUrl}`)
+  await navigateTo(`${RouteConstants.ROUTE_TRANSACTION_LIST}?${filters}${excludedUrl}`)
 }
 
 const onNextMonth = () => {
@@ -93,4 +97,19 @@ watch(
     dataStore.fetchDashboardTransactionsForInterval()
   },
 )
+
+const transactionsListSavingsAmount = computed(() => formatNumberForDashboard(dataStore.transactionsListSavingsAmount))
+const savingsAmountClass = computed(() => (dataStore.transactionsListSavingsAmount > 0 ? 'text-success' : 'text-danger'))
+
+const savingsPercentFormatted = computed(() => {
+  return `${Math.trunc(dataStore.transactionsListSavingsPercentage)} %`
+})
+const onNavigateToTransactionSavings = async () => {
+  if (dataStore.transactionsListSavings.length === 0) {
+    return
+  }
+  let transactionIds = dataStore.transactionsListSavings.map((item) => item.id).join(',')
+  let filters = TransactionFilterUtils.filters.id.toUrl(transactionIds)
+  await navigateTo(`${RouteConstants.ROUTE_TRANSACTION_LIST}?${filters}`)
+}
 </script>

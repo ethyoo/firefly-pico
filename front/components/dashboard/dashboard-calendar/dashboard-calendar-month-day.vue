@@ -16,7 +16,7 @@ import { format, getDate, isAfter, isBefore, isMonday, isSameDay, isSameMonth, i
 import { computed } from 'vue'
 import Transaction from '~/models/Transaction.js'
 import { get } from 'lodash'
-import { getFormattedValue } from '~/utils/MathUtils.js'
+import { formatNumberForDashboard } from '~/utils/NumberUtils.js'
 import { getExcludedTransactionUrl } from '~/utils/DashboardUtils.js'
 import RouteConstants from '~/constants/RouteConstants.js'
 
@@ -41,30 +41,38 @@ const tdClass = computed(() => {
 
 const amountIncome = computed(() => {
   let value = get(dataStore.dashboardCalendarTransactionsByDate, `${formattedDate.value}.${Transaction.types.income.code}`)
-  return value ? getFormattedValue(value) : null
+  return value ? formatNumberForDashboard(value) : null
 })
 
 const amountExpense = computed(() => {
   let value = get(dataStore.dashboardCalendarTransactionsByDate, `${formattedDate.value}.${Transaction.types.expense.code}`)
-  return value ? getFormattedValue(value) : null
+  return value ? formatNumberForDashboard(value) : null
 })
 
 const amountTransfer = computed(() => {
   let value = get(dataStore.dashboardCalendarTransactionsByDate, `${formattedDate.value}.${Transaction.types.transfer.code}`)
-  return value ? getFormattedValue(value) : null
+  return value ? formatNumberForDashboard(value) : null
+})
+
+const isCellEmpty = computed(() => {
+  return !amountIncome.value && !amountExpense.value && !amountTransfer.value
 })
 
 const dayStyle = computed(() => {
   // In case we ever need to have cells with different heights
-  let dayHeight = 50
-  return {
-    height: `${dayHeight}px`,
+  if (isCellEmpty.value) {
+    return {
+      height: `50px`,
+    }
   }
 })
 
 const onClick = async () => {
   let excludedUrl = getExcludedTransactionUrl()
-  let date = DateUtils.dateToString(props.day)
-  await navigateTo(`${RouteConstants.ROUTE_TRANSACTION_LIST}?date_start=${date}&date_end=${date}${excludedUrl}`)
+  let filters = [
+    TransactionFilterUtils.filters.dateAfter.toUrl(props.day),
+    TransactionFilterUtils.filters.dateBefore.toUrl(props.day),
+  ].join('&')
+  await navigateTo(`${RouteConstants.ROUTE_TRANSACTION_LIST}?${filters}${excludedUrl}`)
 }
 </script>

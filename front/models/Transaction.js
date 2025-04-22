@@ -4,6 +4,7 @@ import TransactionRepository from '~/repository/TransactionRepository'
 import { useProfileStore } from '~/stores/profileStore'
 import Account from '~/models/Account'
 import _, { get, isEqual } from 'lodash'
+import Currency from '~/models/Currency.js'
 
 class Transaction extends BaseModel {
   getTransformer() {
@@ -44,6 +45,7 @@ class Transaction extends BaseModel {
             accountDestination: profileStore.defaultAccountDestination,
             type: type,
             category: profileStore.defaultCategory,
+            currencyForeign: profileStore.defaultForeignCurrency,
           },
         ],
       },
@@ -60,17 +62,17 @@ class Transaction extends BaseModel {
   static get types() {
     return {
       expense: {
-        name: 'Expense',
+        t: 'transaction.type.expense',
         code: 'expense',
         fireflyCode: 'withdrawal',
       },
       income: {
-        name: 'Income',
+        t: 'transaction.type.income',
         code: 'income',
         fireflyCode: 'deposit',
       },
       transfer: {
-        name: 'Transfer',
+        t: 'transaction.type.transfer',
         code: 'transfer',
         fireflyCode: 'transfer',
       },
@@ -96,27 +98,40 @@ class Transaction extends BaseModel {
   }
 
   static getCurrency(transaction) {
+    return get(transaction, 'attributes.transactions.0.currency', [])
+  }
+
+  static getCurrencyCode(transaction) {
     return get(transaction, 'attributes.transactions.0.currency_code', [])
   }
 
   static getTags(transaction) {
-    return get(transaction, 'attributes.transactions', []).map(item => item.tags).flat()
+    return get(transaction, 'attributes.transactions', [])
+      .map((item) => item.tags)
+      .flat()
   }
 
   static getCategoryId(transaction) {
     return get(transaction, 'attributes.transactions.0.category_id', 0)
   }
 
+  static getSplits(transaction) {
+    return get(transaction, 'attributes.transactions', [])
+  }
+
   static getAmountFormatted(transaction) {
-    return this.getAmount(transaction).toFixed(2)
+    let currency = this.getCurrency(transaction)
+    let digits = Currency.getDecimalPlaces(currency)
+    return this.getAmount(transaction).toFixed(digits)
   }
 
   static getDate(transaction) {
     return get(transaction, 'attributes.transactions.0.date')
   }
 
-  static formatAmount(amount) {
-    return (Math.round(amount * 100) / 100).toFixed(2)
+  static formatAmountForCurrency(amount, currency) {
+    let decimals = Currency.getDecimalPlaces(currency) ?? 2
+    return parseFloat(amount).toFixed(decimals)
   }
 
   static getTransactionTypeForAccounts({ source, destination }) {

@@ -65,8 +65,8 @@ const filteredList = computed(() => {
 
 const accountsGroupList = computed(() => {
   const groupedAccounts = filteredList.value.reduce((result, account) => {
-    const type = get(Account.getType(account), 'name')
-    result[type] = [...(result[type] ?? []), account]
+    const typeName = get(Account.getType(account), 'name')
+    result[typeName] = [...(result[typeName] ?? []), account]
     return result
   }, {})
 
@@ -105,8 +105,9 @@ const onLoadMore = () => {
 // }
 
 const toolbar = useToolbar()
+const { t } = useI18n()
 toolbar.init({
-  title: 'Accounts list',
+  title: t('accounts'),
   titleIcon: TablerIconConstants.account,
   backRoute: RouteConstants.ROUTE_EXTRAS,
 })

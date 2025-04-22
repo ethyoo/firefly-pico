@@ -29,10 +29,14 @@ export default class TransactionTransformer extends ApiTransformer {
       let hasMissingCategory = transaction['category_id'] && !categoryDictionary[transaction['category_id']]
       let hasMissingTag = false
 
-      transaction.amount = Transaction.formatAmount(_.get(transaction, 'amount', 0))
-      transaction.amountForeign = Transaction.formatAmount(_.get(transaction, 'foreign_amount', 0))
-      transaction.foreignCurrencyId = get(transaction, 'foreign_currency_id')
+      let currencyForeignId = get(transaction, 'foreign_currency_id')
+      transaction.currencyForeign = currencyForeignId ? dataStore.currencyDictionary[currencyForeignId] : null
 
+      let currencyId = get(transaction, 'currency_id')
+      transaction.currency = currencyId ? dataStore.currencyDictionary[currencyId] : null
+
+      transaction.amount = Transaction.formatAmountForCurrency(transaction?.amount, transaction.currency)
+      transaction.amountForeign = Transaction.formatAmountForCurrency(transaction?.foreign_amount, transaction.currencyForeign)
       transaction.date = DateUtils.autoToDate(transaction.date)
       transaction.accountSource = accountsDictionary[transaction['source_id']]
       transaction.accountDestination = accountsDictionary[transaction['destination_id']]
@@ -67,12 +71,16 @@ export default class TransactionTransformer extends ApiTransformer {
     newTransactions = newTransactions.map((item) => {
       const accountSource = _.get(item, 'accountSource')
       const accountDestination = _.get(item, 'accountDestination')
-      const hasDifferentCurrencies = accountSource && accountDestination && Account.getCurrencyId(accountSource) !== Account.getCurrencyId(accountDestination)
 
       let newItem = {}
       newItem.amount = _.get(item, 'amount', 0)
-      newItem.foreign_amount = hasDifferentCurrencies ? _.get(item, 'amountForeign', 0) : null
-      newItem.foreign_currency_id = hasDifferentCurrencies ? Account.getCurrencyId(accountDestination) : null
+
+      let foreignAmount = get(item, 'amountForeign', 0)
+      let foreignCurrency = get(item, 'currencyForeign.id')
+      if (foreignAmount > 0 && foreignCurrency) {
+        newItem.foreign_amount = _.get(item, 'amountForeign', 0)
+        newItem.foreign_currency_id = _.get(item, 'currencyForeign.id')
+      }
 
       newItem.description = get(item, 'description', '')
       newItem.notes = _.get(item, 'notes')

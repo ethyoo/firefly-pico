@@ -9,6 +9,7 @@ export const icons = {
   settings: 'IconSettings',
   tag: 'IconTag',
   budget: 'IconBasket',
+  budgetLimit: 'IconCalendarDollar',
   currency: 'IconCoin',
   transaction: 'IconCoins',
   transactionTemplate: 'IconTemplate',
@@ -74,6 +75,7 @@ export const icons = {
   search: 'IconAdjustmentsAlt',
   form: 'IconForms',
   order: 'IconMenuOrder',
+  list: 'IconListDetails',
   amountButtons: 'IconBusinessplan',
 
 

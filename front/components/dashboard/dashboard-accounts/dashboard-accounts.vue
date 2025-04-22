@@ -1,7 +1,7 @@
 <template>
-  <van-cell-group inset >
+  <van-cell-group inset>
     <div class="flex-center-vertical">
-      <div class="van-cell-group-title">Total balance:</div>
+      <div class="van-cell-group-title">{{ $t('dashboard.account_total') }}:</div>
     </div>
 
     <van-grid :column-num="2">
@@ -22,22 +22,23 @@
     <div v-if="hasHiddenAccounts" class="flex-center">
       <div @click="toggleHiddenAccounts" class="p-5 m-5 button-link">
         {{ showHiddenAccounts ? 'View less...' : 'View more...' }}
+        <component :is="showHiddenAccounts ? IconLibraryMinus : IconLibraryPlus" :size="20" :stroke="1.7" />
       </div>
     </div>
 
     <div class="flex-center text-size-13 m-10 flex-wrap">
       <div class="flex-center text-size-13 me-1">
         <icon-cash class="text-muted" :size="24" :stroke="1.5" />
-        <span class="font-400 text-muted">Total: </span>
+        <span class="font-400 text-muted">{{ $t('total')}}: </span>
       </div>
 
       <span v-for="(totalValue, totalCurrency) in dataStore.dashboardAccountsTotalByCurrency" class="font-700 ms-1 mx-1 app-select-option-tag">
-        {{ getFormattedValue(totalValue) }} {{ totalCurrency }}
+        {{ formatNumberForDashboard(totalValue) }} {{ totalCurrency }}
       </span>
     </div>
 
     <div v-if="hasMultipleCurrencies" class="flex-center text-size-13 mb-3 gap-1">
-      <span class="font-700">~{{ accountTotal }} {{ dataStore.dashboardCurrency }}</span>
+      <span class="font-700">~{{ accountTotal }} {{ Currency.getCode(dataStore.dashboardCurrency)  }}</span>
     </div>
   </van-cell-group>
 </template>
@@ -46,9 +47,10 @@
 import TablerIconConstants from '~/constants/TablerIconConstants.js'
 import Account from '~/models/Account.js'
 import RouteConstants from '~/constants/RouteConstants.js'
-import { IconCash } from '@tabler/icons-vue'
-import { getFormattedValue } from '~/utils/MathUtils.js'
+import { IconCash, IconLibraryPlus, IconLibraryMinus } from '@tabler/icons-vue'
+import { formatNumberForDashboard } from '~/utils/NumberUtils.js'
 import { useActionSheet } from '~/composables/useActionSheet.js'
+import Currency from '../../../models/Currency.js'
 
 const profileStore = useProfileStore()
 const dataStore = useDataStore()
@@ -66,16 +68,14 @@ const visibleDashboardAccounts = computed(() => {
 const hasHiddenAccounts = computed(() => dataStore.dashboardAccounts.some((account) => !Account.getIsVisibleOnDashboard(account)))
 
 const accountTotal = computed(() => {
-  return getFormattedValue(dataStore.dashboardAccountsEstimatedTotal)
+  return formatNumberForDashboard(dataStore.dashboardAccountsEstimatedTotal)
 })
 
-
 const getAccountAmount = (account) => {
-  return `${getFormattedValue(Account.getBalance(account))} ${Account.getCurrency(account)}`
+  return `${formatNumberForDashboard(Account.getBalance(account))} ${Account.getCurrencySymbol(account)}`
 }
 
 const hasMultipleCurrencies = computed(() => dataStore.dashboardAccountsCurrencyList.length > 1)
-
 
 const actionSheet = useActionSheet()
 const onShowActionSheet = (account) => {
@@ -87,7 +87,8 @@ const onShowActionSheet = (account) => {
 
 const onGoToTransactions = async (account) => {
   if (account) {
-    await navigateTo(`${RouteConstants.ROUTE_TRANSACTION_LIST}?account_id=${account.id}`)
+    let filters = TransactionFilterUtils.filters.account.toUrl([account])
+    await navigateTo(`${RouteConstants.ROUTE_TRANSACTION_LIST}?${filters}`)
   }
 }
 

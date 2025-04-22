@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 // import {keyBy} from 'lodash'
 import { cloneDeep, get, head, isEqual, keyBy, set, uniq } from 'lodash'
-import { useLocalStorage } from '@vueuse/core'
+import { StorageSerializers, useLocalStorage } from '@vueuse/core'
 import AccountRepository from '~/repository/AccountRepository'
 import CategoryRepository from '~/repository/CategoryRepository'
 import TagRepository from '~/repository/TagRepository'
@@ -9,7 +9,7 @@ import AccountTransformer from '~/transformers/AccountTransformer'
 import TransactionTemplateRepository from '~/repository/TransactionTemplateRepository'
 import CurrencyRepository from '~/repository/CurrencyRepository'
 import { useProfileStore } from '~/stores/profileStore'
-import { addMonths, differenceInHours, getDate, getDay, isBefore, isSameMonth, setDate, startOfDay, startOfMonth, subDays, subMonths, subYears } from 'date-fns'
+import { addMonths, differenceInDays, differenceInHours, getDate, setDate, startOfDay, startOfMonth, subDays, subMonths, subYears } from 'date-fns'
 import CategoryTransformer from '~/transformers/CategoryTransformer'
 import TagTransformer from '~/transformers/TagTransformer'
 import TransactionTemplateTransformer from '~/transformers/TransactionTemplateTransformer'
@@ -25,6 +25,7 @@ import { uniqBy } from 'lodash/array.js'
 import BudgetRepository from '~/repository/BudgetRepository.js'
 import BudgetTransformer from '~/transformers/BudgetTransformer.js'
 import BudgetLimitTransformer from '~/transformers/BudgetLimitTransformer.js'
+import Currency from '~/models/Currency.js'
 
 export const useDataStore = defineStore('data', {
   state: () => {
@@ -37,10 +38,11 @@ export const useDataStore = defineStore('data', {
         transactionsList: [],
         transactionsListLastWeek: [],
         transactionsWithTodo: [],
+        tagsWidgetModeOnlyRootTag: useLocalStorage('tagsWidgetModeOnlyRootTag', true),
       },
 
       exchangeRates: useLocalStorage('exchangeRates', {}),
-      dashboardCurrency: useLocalStorage('dashboardCurrency', null),
+      dashboardCurrency: useLocalStorage('dashboardCurrency', null, { serializer: StorageSerializers.object }),
 
       transactionTemplateList: useLocalStorage('transactionTemplateList', []), // transactionTemplateList: useLocalStorage('transactionTemplateList', [], TransactionTemplateUtils.getLocalStorageSerializer()),
       categoryList: useLocalStorage('categoryList', []),
@@ -77,17 +79,20 @@ export const useDataStore = defineStore('data', {
     dashboardAccounts(state) {
       const profileStore = useProfileStore()
       return state.accountList.filter((account) => {
+        const isTypeAssetOrLiability = [Account.types.asset.fireflyCode, Account.types.liability.fireflyCode].includes(Account.getType(account)?.fireflyCode)
+
         return (
-          isEqual(Account.getType(account), Account.types.asset) &&
-          Account.getIsActive(account) &&
-          Account.getIsIncludedInNetWorth(account) &&
-          (Account.getBalance(account) != 0 || profileStore.dashboard.areEmptyAccountsVisible)
+          isTypeAssetOrLiability && Account.getIsActive(account) && Account.getIsIncludedInNetWorth(account) && (Account.getBalance(account) != 0 || profileStore.dashboard.areEmptyAccountsVisible)
         )
       })
     },
 
     dashboardAccountsCurrencyList(state) {
-      return uniq(this.dashboardAccounts.map((account) => get(account, 'attributes.currency_code')))
+      return uniq(this.dashboardAccounts.map((account) => get(account, 'attributes.currency')))
+    },
+
+    dashboardCurrencyCode(state) {
+      return Currency.getCode(state.dashboardCurrency)
     },
 
     dashboardAccountsTotalByCurrency(state) {
@@ -108,17 +113,19 @@ export const useDataStore = defineStore('data', {
       return Object.keys(this.dashboardAccountsTotalByCurrency)
         .reduce((result, currencyCode) => {
           const currencyAmount = this.dashboardAccountsTotalByCurrency[currencyCode]
-          return result + convertCurrency(currencyAmount, currencyCode, state.dashboardCurrency)
+          return result + convertCurrency(currencyAmount, currencyCode, Currency.getCode(state.dashboardCurrency))
         }, 0)
         .toFixed(2)
     },
 
     dashboardExpensesByCategory(state) {
       return this.transactionsListExpense.reduce((result, transaction) => {
-        let categoryId = Transaction.getCategoryId(transaction)
-
-        let oldTotal = get(result, categoryId, 0)
-        result[categoryId] = oldTotal + convertTransactionAmountToCurrency(transaction, state.dashboardCurrency)
+        const splits = Transaction.getSplits(transaction)
+        for (let split of splits) {
+          const categoryId = split.category_id
+          const oldTotal = get(result, categoryId, 0)
+          result[categoryId] = oldTotal + convertCurrency(split.amount, split.currency_code, Currency.getCode(state.dashboardCurrency))
+        }
 
         return result
       }, {})
@@ -127,11 +134,13 @@ export const useDataStore = defineStore('data', {
     dashboardExpensesByTag(state) {
       return this.transactionsListExpense.reduce((result, transaction) => {
         let tags = Transaction.getTags(transaction)
-        let targetTag = tags.find((tag) => !get(tag, 'attributes.parent_id')) ?? head(tags)
-        let tagId = get(targetTag, 'id', 0)
-
-        let oldTotal = get(result, tagId, 0)
-        result[tagId] = oldTotal + convertTransactionAmountToCurrency(transaction, state.dashboardCurrency)
+        let rootTag = tags.find((tag) => !get(tag, 'attributes.parent_id')) ?? head(tags)
+        let targetTags = state.dashboard.tagsWidgetModeOnlyRootTag ? [rootTag] : tags
+        for (let targetTag of targetTags) {
+          let tagId = get(targetTag, 'id', 0)
+          let oldTotal = get(result, tagId, 0)
+          result[tagId] = oldTotal + convertTransactionAmountToCurrency(transaction, Currency.getCode(state.dashboardCurrency))
+        }
         return result
       }, {})
     },
@@ -167,7 +176,7 @@ export const useDataStore = defineStore('data', {
         }
 
         let transactionTypeCode = Transaction.getTypeCode(transaction)
-        let amount = convertTransactionAmountToCurrency(transaction, state.dashboardCurrency)
+        let amount = convertTransactionAmountToCurrency(transaction, Currency.getCode(state.dashboardCurrency))
         result[date][transactionTypeCode] += amount
 
         return result
@@ -179,7 +188,7 @@ export const useDataStore = defineStore('data', {
         const date = DateUtils.dateToString(Transaction.getDate(transaction))
 
         const oldValue = get(result, date, 0)
-        result[date] = oldValue + convertTransactionAmountToCurrency(transaction, state.dashboardCurrency)
+        result[date] = oldValue + convertTransactionAmountToCurrency(transaction, Currency.getCode(state.dashboardCurrency))
 
         return result
       }, {})
@@ -208,8 +217,8 @@ export const useDataStore = defineStore('data', {
     },
 
     transactionsListSavingsAmount(state) {
-      let amountIn = convertTransactionsTotalAmountToCurrency(this.transactionsListSavingsIn, state.dashboardCurrency)
-      let amountOut = convertTransactionsTotalAmountToCurrency(this.transactionsListSavingsOut, state.dashboardCurrency)
+      let amountIn = convertTransactionsTotalAmountToCurrency(this.transactionsListSavingsIn, Currency.getCode(state.dashboardCurrency))
+      let amountOut = convertTransactionsTotalAmountToCurrency(this.transactionsListSavingsOut, Currency.getCode(state.dashboardCurrency))
       return amountIn - amountOut
     },
 
@@ -233,15 +242,15 @@ export const useDataStore = defineStore('data', {
     },
 
     totalExpenseThisMonth(state) {
-      return convertTransactionsTotalAmountToCurrency(this.transactionsListExpense, state.dashboardCurrency)
+      return convertTransactionsTotalAmountToCurrency(this.transactionsListExpense, Currency.getCode(state.dashboardCurrency))
     },
 
     totalIncomeThisMonth(state) {
-      return convertTransactionsTotalAmountToCurrency(this.transactionsListIncome, state.dashboardCurrency)
+      return convertTransactionsTotalAmountToCurrency(this.transactionsListIncome, Currency.getCode(state.dashboardCurrency))
     },
 
     totalTransfersThisMonth(state) {
-      return convertTransactionsTotalAmountToCurrency(this.transactionsListTransfers, state.dashboardCurrency)
+      return convertTransactionsTotalAmountToCurrency(this.transactionsListTransfers, Currency.getCode(state.dashboardCurrency))
     },
 
     totalSurplusThisMonth(state) {
@@ -250,6 +259,31 @@ export const useDataStore = defineStore('data', {
 
     totalTransactionsCount(state) {
       return state.dashboard.transactionsList.length ?? 0
+    },
+
+    // -------
+
+    // TODO: Actually compute the currency exchanges
+
+    budgetLimitTotal(state) {
+      return state.budgetLimitList.reduce((result, budgetLimit) => {
+        let budgetAmount = get(budgetLimit, 'attributes.amount') ?? 0
+        let budgetCurrencyCode = get(budgetLimit, 'attributes.currency_code')
+        return result + convertCurrency(budgetAmount, budgetCurrencyCode, Currency.getCode(state.dashboardCurrency))
+      }, 0)
+    },
+
+    budgetLimitSpent(state) {
+      return Math.abs(
+        state.budgetLimitList.reduce((result, budgetLimit) => {
+          let budgetAmount = get(budgetLimit, 'attributes.spent') ?? 0
+          let budgetCurrencyCode = get(budgetLimit, 'attributes.currency_code')
+          return result + convertCurrency(budgetAmount, budgetCurrencyCode, Currency.getCode(state.dashboardCurrency))
+        }, 0),
+      )
+    },
+    budgetLimitRemaining(state) {
+      return this.budgetLimitTotal - this.budgetLimitSpent
     },
 
     // -------
@@ -320,12 +354,6 @@ export const useDataStore = defineStore('data', {
 
   actions: {
     async fetchExchangeRate() {
-      let exchangeDate = get(this.exchangeRates, 'date')
-      exchangeDate = DateUtils.stringToDate(exchangeDate)
-      // if (isToday(exchangeDate)) {
-      //   return
-      // }
-
       this.isLoadingExchangeRates = true
       this.exchangeRates = await new CurrencyRepository().getCurrencyExchange()
       this.isLoadingExchangeRates = false
@@ -395,7 +423,9 @@ export const useDataStore = defineStore('data', {
       let lastSyncTime = this.lastSync ?? subYears(new Date(), 1)
       let now = new Date()
 
-      if (differenceInHours(now, lastSyncTime) < 24) {
+      const appStore = useAppStore()
+
+      if (differenceInDays(now, lastSyncTime) < appStore.daysBetweenFullSync) {
         return
       }
 
@@ -441,13 +471,14 @@ export const useDataStore = defineStore('data', {
       this.isLoadingAccounts = true
       let list = await new AccountRepository().getAllWithMerge()
       // const allowedTypes = Object.values(Account.types).map(item => item.fireflyCode)
-      const allowedTypes = [Account.types.asset, Account.types.expense, Account.types.revenue].map((item) => item.fireflyCode)
+      const allowedTypes = [Account.types.asset, Account.types.expense, Account.types.revenue, Account.types.liability].map((item) => item.fireflyCode)
       list = list.filter((item) => allowedTypes.includes(get(item, 'attributes.type')))
       this.accountList = AccountTransformer.transformFromApiList(list)
       this.isLoadingAccounts = false
 
-      if (!this.dashboardCurrency) {
-        this.dashboardCurrency = get(head(list), 'attributes.currency_code')
+      if (!this.dashboardCurrency?.id) {
+        let currencies = list.map((item) => get(item, 'attributes.currency')).filter((item) => !!item)
+        this.dashboardCurrency = head(currencies)
       }
     },
 
@@ -472,12 +503,6 @@ export const useDataStore = defineStore('data', {
 
       this.isLoadingBudgets = false
     },
-
-    // async fetchBudgetLimits() {
-    //   this.isLoadingBudgetLimits = true
-    //
-    //   this.isLoadingBudgetLimits = false
-    // },
 
     async fetchTags() {
       this.isLoadingTags = true

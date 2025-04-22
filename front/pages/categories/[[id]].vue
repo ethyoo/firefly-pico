@@ -6,14 +6,13 @@
       </template>
     </app-top-toolbar>
 
-
     <app-card-info v-if="itemId">
-      <app-field-link label="Show transactions" :icon="TablerIconConstants.transaction" @click="navigateTo(`${RouteConstants.ROUTE_TRANSACTION_LIST}?category_id=${itemId}`)" />
+      <app-field-link :label="$t('show_transactions')" :icon="TablerIconConstants.transaction" @click="onNavigateToTransactionsList" />
     </app-card-info>
 
     <van-form ref="form" :name="formName" @submit="saveItem" @failed="onValidationError" class="">
       <van-cell-group inset>
-        <app-field v-model="name" name="name" label="Name" rows="1" autosize :icon="TablerIconConstants.fieldText2" placeholder="Description" :rules="[{ required: true, message: 'Name is required' }]" />
+        <app-field v-model="name" name="name" :label="$t('name')" rows="1" autosize :icon="TablerIconConstants.fieldText2" :rules="[rule.required()]" />
 
         <icon-select v-model="icon" />
       </van-cell-group>
@@ -41,6 +40,7 @@ import Category from '~/models/Category'
 import { useToolbar } from '~/composables/useToolbar'
 import CategoryTransformer from '~/transformers/CategoryTransformer'
 import TablerIconConstants from '~/constants/TablerIconConstants.js'
+import { rule } from '~/utils/ValidationUtils.js'
 
 let dataStore = useDataStore()
 let profileStore = useProfileStore()
@@ -95,10 +95,16 @@ watch(name, (newValue) => {
   name.value = newValue
 })
 
+const onNavigateToTransactionsList = async () => {
+  let filters = TransactionFilterUtils.filters.category.toUrl(item.value)
+  await navigateTo(`${RouteConstants.ROUTE_TRANSACTION_LIST}?${filters}`)
+}
+
 const toolbar = useToolbar()
+const { t } = useI18n()
+
 toolbar.init({
-  title: title,
-  leftText: 'List',
+  title: itemId.value ? t('category_page.title_edit') : t('category_page.title_add'),
   backRoute: RouteConstants.ROUTE_CATEGORY_LIST,
 })
 </script>

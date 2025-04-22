@@ -1,13 +1,13 @@
 <template>
-  <van-cell-group inset >
-    <div class="van-cell-group-title">Expenses by categories:</div>
+  <van-cell-group inset>
+    <div class="van-cell-group-title">{{ $t('dashboard.expenses_by_categories') }}:</div>
     <div class="display-flex flex-column ml-15 mr-15">
       <table>
         <tr v-for="bar in barsList" @click="onShowActionSheet(bar)">
           <td style="width: 1%">
             <div class="flex-center-vertical gap-1 my-1">
               <app-icon :icon="Category.getIcon(bar.category) ?? TablerIconConstants.category" :size="20" />
-              <span class="text-size-12 font-weight-400">{{ bar.label }}</span>
+              <span class="text-size-12 font-weight-400 flex-1">{{ ellipsizeText(bar.label, 25) }}</span>
             </div>
           </td>
 
@@ -35,6 +35,7 @@ import { getExcludedTransactionUrl } from '~/utils/DashboardUtils.js'
 import { useActionSheet } from '~/composables/useActionSheet.js'
 
 const dataStore = useDataStore()
+const { t } = useI18n()
 
 const barsList = computed(() => {
   let dictionary = dataStore.dashboardExpensesByCategory
@@ -47,8 +48,8 @@ const barsList = computed(() => {
     const percent = (amount / maxAmount) * 100
     return {
       category: category,
-      label: category ? Category.getDisplayName(category) : 'Not set',
-      value: getFormattedValue(amount, 0),
+      label: category ? Category.getDisplayName(category) : t('not_set'),
+      value: formatNumberForDashboard(amount),
       percent: percent,
     }
   })
@@ -58,7 +59,6 @@ const barsList = computed(() => {
 const getBarColor = (bar) => {
   return '#F06292'
 }
-
 
 const actionSheet = useActionSheet()
 const onShowActionSheet = ({ category }) => {

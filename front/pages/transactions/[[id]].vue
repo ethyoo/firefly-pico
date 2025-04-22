@@ -8,41 +8,39 @@
 
     <div class="mb-10" />
 
-    <transaction-assistant v-if="!itemId" @change="onAssistant" @keyup.enter="saveItem" />
+    <transaction-assistant v-if="!itemId && !isCloning" @change="onAssistant" @keyup.enter="saveItem" v-model="assistantText" />
 
     <transaction-type-tabs v-model="type" class="mx-3 mt-1 mb-1" />
 
     <van-form :disabled="isSplitTransaction" :name="formName" class="transaction-form-group" ref="form" @submit="saveItem" @failed="onValidationError">
       <van-cell-group inset class="mt-0 flex-column display-flex">
-
         <div v-if="isSplitTransaction" class="display-flex ml-3 mt-3">
           <transaction-split-badge />
         </div>
 
         <transaction-amount-field
-          required
-          v-model="amount"
-          v-model:foreign="amountForeign"
-          :currency="sourceCurrencyCode"
-          :currencyForeign="destinationCurrencyCode"
+          v-model:amount="amount"
+          v-model:amountForeign="amountForeign"
+          v-model:currencyForeign="currencyForeign"
+          :currency="sourceCurrency"
           :isForeignAmountVisible="isForeignAmountVisible"
           ref="refAmount"
           name="amount"
-          :rules="[{ required: true, message: 'Amount is required' }]"
-          :style="getStyleForField(FORM_CONSTANTS_TRANSACTION_FIELDS.TRANSACTION_FORM_FIELD_AMOUNT)"
+          :style="getStyleForField(transactionFormField.amount)"
           :disabled="isSplitTransaction"
+          :isAmountRequired="true"
         />
 
         <account-select
           v-model="accountSource"
-          label="Source account"
+          :label="$t('transaction.source_account')"
           :allowed-types="accountSourceAllowedTypes"
-          :style="getStyleForField(FORM_CONSTANTS_TRANSACTION_FIELDS.TRANSACTION_FORM_FIELD_SOURCE_ACCOUNT)"
+          :style="getStyleForField(transactionFormField.sourceAccount)"
           v-bind="accountSourceBinding"
         >
           <template #label>
             <div class="flex-center-vertical gap-1">
-              <div class="flex-1">Source account</div>
+              <div class="flex-1">{{ $t('transaction.source_account') }}</div>
               <van-button v-if="showSourceAccountSuggestion" @click="navigateTo(RouteConstants.ROUTE_SETTINGS_TRANSACTION_DEFAULT_FORM_VALUES)" size="mini" class="suggestion-button"
                 >Set your default
               </van-button>
@@ -52,52 +50,52 @@
 
         <account-select
           v-model="accountDestination"
-          label="Destination account"
+          :label="$t('transaction.destination_account')"
           :allowed-types="accountDestinationAllowedTypes"
-          :style="getStyleForField(FORM_CONSTANTS_TRANSACTION_FIELDS.TRANSACTION_FORM_FIELD_DESTINATION_ACCOUNT)"
+          :style="getStyleForField(transactionFormField.destinationAccount)"
           v-bind="accountDestinationBinding"
         />
 
-        <category-select v-model="category" :style="getStyleForField(FORM_CONSTANTS_TRANSACTION_FIELDS.TRANSACTION_FORM_FIELD_CATEGORY)" />
+        <category-select v-model="category" :style="getStyleForField(transactionFormField.category)" />
 
         <app-field
           v-model="description"
-          label="Description"
+          :label="$t('description')"
           name="description"
           type="textarea"
           rows="1"
           autosize
           :icon="TablerIconConstants.fieldText2"
           placeholder="Description"
-          :rules="[{ required: true, message: 'Description is required' }]"
+          :rules="[rule.required()]"
           required
-          :style="getStyleForField(FORM_CONSTANTS_TRANSACTION_FIELDS.TRANSACTION_FORM_FIELD_DESCRIPTION)"
+          :style="getStyleForField(transactionFormField.description)"
         />
 
-        <tag-select v-model="tags" :style="getStyleForField(FORM_CONSTANTS_TRANSACTION_FIELDS.TRANSACTION_FORM_FIELD_TAG)" />
+        <tag-select v-model="tags" :style="getStyleForField(transactionFormField.tags)" />
 
-        <div :style="getStyleForField(FORM_CONSTANTS_TRANSACTION_FIELDS.TRANSACTION_FORM_FIELD_DATE)">
-          <app-date-time-grid v-model="date" name="date" :rules="[{ required: true, message: 'Date is required' }]" required />
+        <div :style="getStyleForField(transactionFormField.date)">
+          <app-date-time-grid v-model="date" name="date" :rules="[rule.required()]" required />
 
           <div v-if="!isSplitTransaction" class="px-3 flex-center-vertical gap-1">
-            <van-button size="small" @click="onSubDay">-1 day</van-button>
-            <van-button size="small" @click="onToday">Today</van-button>
-            <van-button size="small" @click="onAddDay">+1 day</van-button>
+            <van-button size="small" @click="onSubDay">{{ $t('sub_day') }}</van-button>
+            <van-button size="small" @click="onToday">{{ $t('today') }}</van-button>
+            <van-button size="small" @click="onAddDay">{{ $t('add_day') }}</van-button>
           </div>
         </div>
 
         <app-field
           v-model="notes"
           :icon="TablerIconConstants.fieldText1"
-          label="Notes"
-          placeholder="No notes..."
+          :label="$t('notes')"
+          :placeholder="$t('notes')"
           type="textarea"
           rows="1"
           autosize
-          :style="getStyleForField(FORM_CONSTANTS_TRANSACTION_FIELDS.TRANSACTION_FORM_FIELD_NOTES)"
+          :style="getStyleForField(transactionFormField.notes)"
         />
 
-        <budget-select v-model="budget" :style="getStyleForField(FORM_CONSTANTS_TRANSACTION_FIELDS.TRANSACTION_FORM_FIELD_BUDGET)" />
+        <budget-select v-model="budget" :style="getStyleForField(transactionFormField.budget)" />
       </van-cell-group>
 
       <div style="margin: 16px; position: relative">
@@ -106,12 +104,12 @@
         <div class="display-flex gap-1">
           <van-button v-if="itemId && !isSplitTransaction" @click="onCreateClone" block type="default" class="mt-2 flex-1">
             <app-icon :icon="TablerIconConstants.clone" />
-            Clone
+            {{ $t('clone') }}
           </van-button>
 
           <van-button v-if="itemId && !isSplitTransaction" @click="onCreateTransactionTemplate" block type="default" class="mt-2 flex-1">
             <app-icon :icon="TablerIconConstants.transactionTemplate" />
-            Make template
+            {{ $t('transaction.make_template') }}
           </van-button>
         </div>
       </div>
@@ -120,12 +118,10 @@
     </van-form>
 
     <app-card-info style="order: 99">
-      <app-field-link label="Configure fields" :icon="TablerIconConstants.settings" @click="navigateTo(RouteConstants.ROUTE_SETTINGS_TRANSACTION_FIELDS_ORDER)" />
+      <app-field-link :label="$t('transaction.configure_fields')" :icon="TablerIconConstants.settings" @click="navigateTo(RouteConstants.ROUTE_SETTINGS_TRANSACTION_FORM_FIELDS)" />
     </app-card-info>
   </div>
 </template>
-
-import { ref } from 'vue';
 
 <script setup>
 import RouteConstants from '~/constants/RouteConstants'
@@ -140,7 +136,6 @@ import Transaction from '~/models/Transaction'
 import { useToolbar } from '~/composables/useToolbar'
 import TagSelect from '~/components/select/tag-select.vue'
 import Category from '~/models/Category'
-import { FORM_CONSTANTS_TRANSACTION_FIELDS } from '~/constants/FormConstants'
 import Tag from '~/models/Tag'
 import { isStringEmpty } from '~/utils/DataUtils'
 import TablerIconConstants from '~/constants/TablerIconConstants'
@@ -150,6 +145,9 @@ import { addDays, endOfMonth, startOfMonth } from 'date-fns'
 import TransactionRepository from '~/repository/TransactionRepository.js'
 import TransactionTransformer from '~/transformers/TransactionTransformer.js'
 import TransactionSplitBadge from '~/components/transaction/transaction-split-badge.vue'
+import { useI18n } from '#imports'
+import { transactionFormField } from '~/constants/TransactionConstants.js'
+import { rule } from '~/utils/ValidationUtils.js'
 
 const refAmount = ref(null)
 
@@ -160,24 +158,23 @@ let profileStore = useProfileStore()
 const route = useRoute()
 
 const form = ref(null)
-const showTransactionVoice = ref(false)
-// const selectedTransactionTemplate = ref(null)
+const assistantText = ref('')
 
-let { itemId, item, isEmpty, title, addButtonText, isLoading, onClickBack, saveItem, onDelete, onNew, onValidationError, formName } = useForm({
+let { itemId, item, isEmpty, addButtonText, isLoading, onClickBack, saveItem, onDelete, onNew, onValidationError, formName } = useForm({
   form: form,
-  titleAdd: 'Add transaction',
-  titleEdit: 'Edit transaction',
   routeList: RouteConstants.ROUTE_TRANSACTION_LIST,
   routeForm: RouteConstants.ROUTE_TRANSACTION_ID,
   model: new Transaction(),
+  resetFields: () => {
+    assistantText.value = ''
+  },
 })
 
-const time = ref(['12', '00'])
-
 const pathKey = 'attributes.transactions.0'
-const { amount, amountForeign, date, tags, description, notes, budget, accountSource, accountDestination, category, type } = generateChildren(item, [
+const { amount, amountForeign, date, tags, description, notes, budget, accountSource, accountDestination, category, type, currencyForeign } = generateChildren(item, [
   { computed: 'amount', parentKey: `${pathKey}.amount` },
   { computed: 'amountForeign', parentKey: `${pathKey}.amountForeign` },
+  { computed: 'currencyForeign', parentKey: `${pathKey}.currencyForeign` },
   { computed: 'date', parentKey: `${pathKey}.date` },
   { computed: 'tags', parentKey: `${pathKey}.tags` },
   { computed: 'description', parentKey: `${pathKey}.description` },
@@ -190,19 +187,23 @@ const { amount, amountForeign, date, tags, description, notes, budget, accountSo
 ])
 
 const transactions = computed(() => _.get(item.value, 'attributes.transactions', []))
-const firstTransaction = computed(() => _.head(transactions.value))
 const isSplitTransaction = computed(() => transactions.value.length > 1)
 const accountSourceAllowedTypes = computed(() => Account.getAccountTypesForTransactionTypeSource(type.value))
 const accountDestinationAllowedTypes = computed(() => Account.getAccountTypesForTransactionTypeDestination(type.value))
-// const accountSourceAllowedTypes = computed(() => [])
-// const accountDestinationAllowedTypes = computed(() => [])
 
 // ------------------------------------
 
-const sourceCurrencyCode = computed(() => get(accountSource.value, 'attributes.currency_symbol', ''))
-const destinationCurrencyCode = computed(() => get(accountDestination.value, 'attributes.currency_symbol', ''))
+const sourceCurrency = computed(() => Account.getCurrency(accountSource.value))
+
 const isForeignAmountVisible = computed(() => {
-  return accountSource.value && accountDestination.value && sourceCurrencyCode.value !== destinationCurrencyCode.value
+  let newTransactionWithDefaultCurrency = !itemId.value && (profileStore.defaultForeignCurrency || profileStore.isForeignCurrencyAlwaysVisible)
+  let areTypeAssetsWithDifferentCurrencies =
+    accountSource.value &&
+    accountDestination.value &&
+    Account.getType(accountSource.value)?.fireflyCode === Account.types.asset.fireflyCode &&
+    Account.getType(accountDestination.value)?.fireflyCode === Account.types.asset.fireflyCode &&
+    Account.getCurrency(accountSource.value)?.id !== Account.getCurrency(accountDestination.value)?.id
+  return !!(newTransactionWithDefaultCurrency || areTypeAssetsWithDifferentCurrencies || currencyForeign.value)
 })
 
 //
@@ -231,18 +232,21 @@ const onCreateClone = async () => {
   await navigateTo(`${RouteConstants.ROUTE_TRANSACTION_ID}?transaction_id=${itemId.value}`)
 }
 
-const onTransactionTemplateSelected = (transactionTemplate) => {
+const onTransactionTemplateSelected = async (transactionTemplate) => {
   if (!transactionTemplate) {
     item.value = new Transaction().getEmpty()
     return
   }
   type.value = transactionTemplate.type
+  // We have a watch on type that swaps source/destination accounts for type Income. We don't want anything reversed when using templates
+  // Maybe in the future remove the nextTick below rework the logic inside the watch...
+  await nextTick()
   amount.value = transactionTemplate.amount
-  if (!accountSource.value) {
+  if (transactionTemplate.account_source_id) {
     accountSource.value = dataStore.accountDictionary[transactionTemplate.account_source_id]
   }
 
-  if (!accountDestination.value) {
+  if (transactionTemplate.account_destination_id) {
     accountDestination.value = dataStore.accountDictionary[transactionTemplate.account_destination_id]
   }
   description.value = transactionTemplate.description
@@ -268,7 +272,7 @@ watch(tags, async (newValue) => {
 
   if (profileStore.copyTagToDescription && isStringEmpty(description.value)) {
     // The first one is the one with the highest level
-    description.value = head(sortedTagNames)
+    description.value = head(sortedTagNames) ?? ''
   }
 
   if (profileStore.copyTagToCategory && !category.value) {
@@ -310,7 +314,7 @@ const onAssistant = async ({ tag: newTag, category: newCategory, transactionTemp
   }
 
   if (transactionTemplate) {
-    onTransactionTemplateSelected(transactionTemplate)
+    await onTransactionTemplateSelected(transactionTemplate)
   } else {
     type.value = Transaction.types.expense
   }
@@ -328,9 +332,9 @@ const isTypeExpense = computed(() => isEqual(type.value, Transaction.types.expen
 const isTypeIncome = computed(() => isEqual(type.value, Transaction.types.income))
 const isTypeTransfer = computed(() => isEqual(type.value, Transaction.types.transfer))
 
-const getStyleForField = (fieldCode) => {
-  let position = profileStore.transactionOrderedFieldsList.findIndex((item) => item.code === fieldCode)
-  let field = profileStore.transactionOrderedFieldsList.find((item) => item.code === fieldCode)
+const getStyleForField = (code) => {
+  let position = profileStore.transactionFormFieldsConfig.findIndex((item) => item.code === code)
+  let field = profileStore.transactionFormFieldsConfig.find((item) => item.code === code)
   let isVisible = field ? field.isVisible : true
   let displayStyle = isVisible ? '' : 'display: none'
 
@@ -338,26 +342,24 @@ const getStyleForField = (fieldCode) => {
     return `order: ${position}; ${displayStyle}`
   }
 
-  const fieldTypeAccountsList = [FORM_CONSTANTS_TRANSACTION_FIELDS.TRANSACTION_FORM_FIELD_SOURCE_ACCOUNT, FORM_CONSTANTS_TRANSACTION_FIELDS.TRANSACTION_FORM_FIELD_DESTINATION_ACCOUNT]
-
   // Should be same as income, but reverse the position on source with destination
   if (isTypeIncome.value) {
-    let position = profileStore.transactionOrderedFieldsList.findIndex((item) => item.code === fieldCode)
-    if (fieldCode === FORM_CONSTANTS_TRANSACTION_FIELDS.TRANSACTION_FORM_FIELD_SOURCE_ACCOUNT) {
-      position = profileStore.transactionOrderedFieldsList.findIndex((item) => item.code === FORM_CONSTANTS_TRANSACTION_FIELDS.TRANSACTION_FORM_FIELD_DESTINATION_ACCOUNT)
+    let position = profileStore.transactionFormFieldsConfig.findIndex((item) => item.code === code)
+    if (code === transactionFormField.sourceAccount.code) {
+      position = profileStore.transactionFormFieldsConfig.findIndex((item) => item.code === transactionFormField.destinationAccount.code)
     }
-    if (fieldCode === FORM_CONSTANTS_TRANSACTION_FIELDS.TRANSACTION_FORM_FIELD_DESTINATION_ACCOUNT) {
-      position = profileStore.transactionOrderedFieldsList.findIndex((item) => item.code === FORM_CONSTANTS_TRANSACTION_FIELDS.TRANSACTION_FORM_FIELD_SOURCE_ACCOUNT)
+    if (code === transactionFormField.destinationAccount.code) {
+      position = profileStore.transactionFormFieldsConfig.findIndex((item) => item.code === transactionFormField.sourceAccount.code)
     }
     return `order: ${position}; ${displayStyle}`
   }
 
   // Transfers
   if (isTypeTransfer.value) {
-    if (fieldTypeAccountsList.includes(fieldCode)) {
+    if ([transactionFormField.sourceAccount.code, transactionFormField.destinationAccount.code].includes(code)) {
       return `order: 0`
     }
-    let position = profileStore.transactionOrderedFieldsList.findIndex((item) => item.code === fieldCode)
+    let position = profileStore.transactionFormFieldsConfig.findIndex((item) => item.code === code)
     return `order: ${position}; ${displayStyle}`
   }
 
@@ -395,6 +397,7 @@ watch(type, (newValue, oldValue) => {
 })
 
 watch(description, (newValue) => {
+  newValue = newValue ?? ''
   if (profileStore.lowerCaseTransactionDescription) {
     newValue = newValue.toLowerCase()
   }
@@ -406,10 +409,16 @@ watch(description, (newValue) => {
 
 const showSourceAccountSuggestion = computed(() => !profileStore.defaultAccountSource && !accountSource.value)
 
+const isCloning = computed(() => !!get(route.query, 'transaction_id'))
+
+const { t } = useI18n()
+const title = computed(() => {
+  return isCloning.value ? t('transaction.title_clone_transaction') : itemId.value ? t('transaction.title_edit_transaction') : t('transaction.title_add_transaction')
+})
+
 const toolbar = useToolbar()
 toolbar.init({
   title: title,
-  leftText: 'List',
   backRoute: RouteConstants.ROUTE_TRANSACTION_LIST,
 })
 
@@ -426,19 +435,9 @@ const cloneTransactions = async () => {
 
   let cloneItem = await new TransactionRepository().getOne(cloneId)
   cloneItem = TransactionTransformer.transformFromApi(cloneItem.data)
-  cloneItem = get(cloneItem, 'attributes.transactions.0')
-  if (!cloneItem) {
-    return
-  }
 
-  amount.value = cloneItem.amount
-  description.value = cloneItem.description
-  notes.value = cloneItem.notes
-  accountSource.value = cloneItem.accountSource
-  accountDestination.value = cloneItem.accountDestination
-  category.value = cloneItem.category
-  tags.value = cloneItem.tags
-  budget.value = cloneItem.budget
+  delete cloneItem.id
+  item.value = cloneItem
 }
 </script>
 

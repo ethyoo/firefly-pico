@@ -4,7 +4,7 @@
 
     <van-form @submit="onSave" class="">
       <van-cell-group inset>
-        <div class="van-cell-group-title mb-0">Theme:</div>
+        <div class="van-cell-group-title mb-0">{{ $t('settings.ui.theme') }}:</div>
 
         <app-boolean :label="themeText" v-model="darkTheme">
           <template #icon="{ value }">
@@ -12,28 +12,11 @@
           </template>
         </app-boolean>
 
+        <language-select v-model="language"></language-select>
+
         <page-select v-model="startingPage"></page-select>
-      </van-cell-group>
 
-      <van-cell-group inset>
-        <div class="van-cell-group-title mb-0">Transaction list:</div>
-
-        <app-select
-          popupTitle="Select what Hero Icons to show"
-          v-model="heroIcons"
-          v-model:showDropdown="isHeroIconsDropdownVisible"
-          :list="heroIconsList"
-          :is-multi-select="true"
-          :columns="1"
-          :has-search="false"
-        >
-          <template #label>
-            <div class="flex-center-vertical">
-              <div class="">Hero Icons</div>
-              <span class="info ml-5">(Right side card in the list)</span>
-            </div>
-          </template>
-        </app-select>
+        <app-boolean v-model="resetFormOnCreate" :label="$t('settings.ui.reset_forms_after_creation')" />
       </van-cell-group>
 
       <app-button-form-save />
@@ -50,23 +33,25 @@ import { useToolbar } from '~/composables/useToolbar'
 import RouteConstants from '~/constants/RouteConstants'
 import TablerIconConstants from '~/constants/TablerIconConstants.js'
 import { saveSettingsToStore, watchSettingsStore } from '~/utils/SettingUtils.js'
-import { HERO_ICONS_LIST } from '~/constants/TransactionConstants.js'
+import LanguageSelect from '~/components/select/general/language-select.vue'
 
+const { t } = useI18n()
 const profileStore = useProfileStore()
 const dataStore = useDataStore()
 
-const themeText = computed(() => (darkTheme.value ? 'Dark' : 'Light'))
+const themeText = computed(() => (darkTheme.value ? t('settings.ui.dark') : t('settings.ui.light')))
 const darkTheme = ref(false)
 const startingPage = ref(null)
+const language = ref(null)
+const resetFormOnCreate = ref(false)
 
-const heroIconsList = HERO_ICONS_LIST
-const isHeroIconsDropdownVisible = ref(false)
-const heroIcons = ref([])
+
 
 const syncedSettings = [
   { store: profileStore, path: 'darkTheme', ref: darkTheme },
-  { store: profileStore, path: 'heroIcons', ref: heroIcons },
+  { store: profileStore, path: 'language', ref: language },
   { store: profileStore, path: 'startingPage', ref: startingPage },
+  { store: profileStore, path: 'resetFormOnCreate', ref: resetFormOnCreate },
 ]
 
 watchSettingsStore(syncedSettings)
@@ -74,12 +59,12 @@ watchSettingsStore(syncedSettings)
 const onSave = async () => {
   saveSettingsToStore(syncedSettings)
   await profileStore.writeProfile()
-  UIUtils.showToastSuccess('User preferences saved')
+  UIUtils.showToastSuccess(t('settings.settings_saved'))
 }
 
 const toolbar = useToolbar()
 toolbar.init({
-  title: 'UI settings',
+  title: computed(() => t('settings.ui.title')),
   backRoute: RouteConstants.ROUTE_SETTINGS,
 })
 
