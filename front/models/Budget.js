@@ -20,6 +20,7 @@ export default class Budget extends BaseModel {
     return {
       attributes: {
         name: '',
+        active: true,
         icon: null,
         auto_budget_type: Budget.types.fixed,
         auto_budget_period: Budget.periods.monthly,
@@ -45,6 +46,10 @@ export default class Budget extends BaseModel {
   static getCurrencySymbol(budget) {
     const dataStore = useDataStore()
     return _.get(budget, 'attributes.currency.attributes.symbol', get(dataStore.defaultCurrency, 'attributes.symbol'))
+  }
+
+  static isActive(budget) {
+    return get(budget, 'attributes.active')
   }
 
   // --------

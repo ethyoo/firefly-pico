@@ -332,9 +332,10 @@ const isTypeExpense = computed(() => isEqual(type.value, Transaction.types.expen
 const isTypeIncome = computed(() => isEqual(type.value, Transaction.types.income))
 const isTypeTransfer = computed(() => isEqual(type.value, Transaction.types.transfer))
 
-const getStyleForField = (code) => {
-  let position = profileStore.transactionFormFieldsConfig.findIndex((item) => item.code === code)
-  let field = profileStore.transactionFormFieldsConfig.find((item) => item.code === code)
+const getStyleForField = (fieldType) => {
+  let fieldCode = fieldType.code
+  let position = profileStore.transactionFormFieldsConfig.findIndex((item) => item.code === fieldCode)
+  let field = profileStore.transactionFormFieldsConfig.find((item) => item.code === fieldCode)
   let isVisible = field ? field.isVisible : true
   let displayStyle = isVisible ? '' : 'display: none'
 
@@ -344,11 +345,11 @@ const getStyleForField = (code) => {
 
   // Should be same as income, but reverse the position on source with destination
   if (isTypeIncome.value) {
-    let position = profileStore.transactionFormFieldsConfig.findIndex((item) => item.code === code)
-    if (code === transactionFormField.sourceAccount.code) {
+    let position = profileStore.transactionFormFieldsConfig.findIndex((item) => item.code === fieldCode)
+    if (fieldCode === transactionFormField.sourceAccount.code) {
       position = profileStore.transactionFormFieldsConfig.findIndex((item) => item.code === transactionFormField.destinationAccount.code)
     }
-    if (code === transactionFormField.destinationAccount.code) {
+    if (fieldCode === transactionFormField.destinationAccount.code) {
       position = profileStore.transactionFormFieldsConfig.findIndex((item) => item.code === transactionFormField.sourceAccount.code)
     }
     return `order: ${position}; ${displayStyle}`
@@ -356,10 +357,10 @@ const getStyleForField = (code) => {
 
   // Transfers
   if (isTypeTransfer.value) {
-    if ([transactionFormField.sourceAccount.code, transactionFormField.destinationAccount.code].includes(code)) {
+    if ([transactionFormField.sourceAccount.code, transactionFormField.destinationAccount.code].includes(fieldCode)) {
       return `order: 0`
     }
-    let position = profileStore.transactionFormFieldsConfig.findIndex((item) => item.code === code)
+    let position = profileStore.transactionFormFieldsConfig.findIndex((item) => item.code === fieldCode)
     return `order: ${position}; ${displayStyle}`
   }
 
