@@ -1,6 +1,8 @@
 <template>
   <div :class="layoutClass">
     <slot />
+
+    <profile-picker-float v-if="true" />
     <app-bottom-toolbar />
     <app-bottom-loading />
   </div>
@@ -9,6 +11,8 @@
 import { ref } from 'vue';
 
 <script setup>
+import RouteConstants from '~/constants/RouteConstants.js'
+
 const device = useDevice()
 
 const layoutClass = computed(() => {
@@ -18,4 +22,9 @@ const layoutClass = computed(() => {
     mobile: device.isMobile,
   }
 })
+
+// const isProfileFloatButtonVisible = computed(() => {
+//   let route = useRoute()
+//   return RouteConstants.isSettings(route.path) || route.path === RouteConstants.ROUTE_TRANSACTION_ID
+// })
 </script>

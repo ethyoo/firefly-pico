@@ -2,8 +2,13 @@
   <div class="vant-card flex-column mt-5">
     <div class="vant-card-title flex-center-vertical gap-1">
       {{ $t('transaction.assistant') }}
-      <!--      <app-tutorial v-bind="TUTORIAL_CONSTANTS.assistant" />-->
       <app-tutorial :title="$t('transaction.assistant_tutorial_title')" :body="$t('transaction.assistant_tutorial_body')" />
+
+      <div class="flex-1" />
+      <div class="assistant-currency">
+        <currency-dropdown class="text-size-12" v-model="profileStore.assistantCurrency" />
+        <icon-square-rounded-x v-if="profileStore.assistantCurrency" :size="20" :stroke="1.5" @click="profileStore.assistantCurrency = null" />
+      </div>
     </div>
     <div class="text-size-12 text-muted mb-5">{{ $t('transaction.assistant_format') }}</div>
 
@@ -19,12 +24,6 @@
           autosize
           :clearable="true"
         />
-
-        <van-button v-if="assistantText" @click="onClear" size="small" style="height: 40px">Clear</van-button>
-
-        <!--        <van-button @click="onShow" style="height: auto; padding: 0px 12px;">-->
-        <!--          <icon-hand-finger :size="15" :stroke-width="1.5"/>-->
-        <!--        </van-button>-->
       </div>
 
       <template v-if="foundTag || foundTemplate || hasAmount">
@@ -32,10 +31,9 @@
         <div class="display-flex flex-center-vertical gap-2 p-5 mt-10 text-size-12 flex-wrap" style="border: 1px dashed black; border-radius: 5px">
           <template v-if="foundTemplate">
             <van-tag round class="assistant-tag" size="medium" type="primary">
-              <!--              <app-icon :icon="TablerIconConstants.transactionTemplate" color="#fff" class="mr-5" :size="15"/>-->
               <span>{{ $t('template') }}</span>
               <span>|</span>
-              {{ TransactionTemplate.getDisplayName(foundTemplate) }}
+              {{ foundTemplateDisplayName }}
             </van-tag>
           </template>
 
@@ -96,6 +94,7 @@ import AppTutorial from '~/components/ui-kit/app-tutorial.vue'
 import { TUTORIAL_CONSTANTS } from '~/constants/TutorialConstants.js'
 import Category from '~/models/Category.js'
 import { ellipsizeText } from '~/utils/Utils.js'
+import { IconSquareLetterX, IconSquareRoundedX } from '@tabler/icons-vue'
 
 const props = defineProps({})
 
@@ -112,6 +111,7 @@ const assistantTextField = ref(null)
 const foundCategory = ref(null)
 const foundTag = ref(null)
 const foundTemplate = ref(null)
+const foundTemplateDisplayName = ref(null) // String showing either template name or the matched extra name
 const foundAmount = ref(null)
 const foundDescription = ref(null)
 const isTodo = ref(false)
@@ -120,7 +120,7 @@ const hasAmount = computed(() => {
   return foundAmount.value && foundAmount.value > 0
 })
 
-const fuseOptions = { includeScore: true, minMatchCharLength: 3, threshold: 0.6, distance: 100 }
+const fuseOptions = { includeScore: true, minMatchCharLength: 3, threshold: 0.6, distance: 100, includeMatches: true }
 const fuseConstants = {
   template: {
     weight: 1.0,
@@ -136,7 +136,7 @@ const fuseConstants = {
   },
 }
 const fuseTags = new Fuse([], { ...fuseOptions, keys: ['attributes.tag'] })
-const fuseTransactionTemplate = new Fuse([], { ...fuseOptions, keys: ['name', 'extra_names'] })
+const fuseTransactionTemplate = new Fuse([], { ...fuseOptions, keys: ['name', 'extra_names.value'] })
 const fuseCategories = new Fuse([], { ...fuseOptions, keys: ['attributes.name'] })
 
 onMounted(() => {})
@@ -208,6 +208,7 @@ const processAssistantText = () => {
       score: get(head(fuseTemplateResults), 'score') * fuseConstants.template.weight,
       type: fuseConstants.template.type,
       item: get(head(fuseTemplateResults), 'item'),
+      match: get(head(fuseTemplateResults), 'matches.0.value')
     },
     {
       score: get(head(fuseTagResults), 'score') * fuseConstants.tag.weight,
@@ -228,6 +229,8 @@ const processAssistantText = () => {
 
   if (bestGuess) {
     foundTemplate.value = bestGuess.type === fuseConstants.template.type ? bestGuess.item : null
+    foundTemplateDisplayName.value = foundTemplate.value ? bestGuess.match : null
+
     foundTag.value = bestGuess.type === fuseConstants.tag.type ? bestGuess.item : null
     foundCategory.value = bestGuess.type === fuseConstants.category.type ? bestGuess.item : null
   }
@@ -269,21 +272,20 @@ const onShow = () => {
   show.value = true
 }
 
-watch([foundTemplate, foundTag, foundCategory, foundAmount, foundDescription, isTodo], ([newTemplate, newTag, newCategory, newAmount, newDescription, newIsTodo]) => {
-  emit('change', {
-    transactionTemplate: newTemplate,
-    amount: newAmount,
-    tag: newTag,
-    category: newCategory,
-    description: newDescription,
-    isTodo: newIsTodo,
-  })
-
-  // If you selected a template and didn't write anything => write the text
-  if (assistantText.value === '' && newTemplate) {
-    assistantText.value = get(newTemplate, 'extra_names.0.name', '')
-  }
-})
+watch(
+  [foundTemplate, foundTag, foundCategory, foundAmount, foundDescription, isTodo, () => profileStore.assistantCurrency, () => profileStore.profileActiveId],
+  ([newTemplate, newTag, newCategory, newAmount, newDescription, newIsTodo, newAssistantCurrency, _]) => {
+    emit('change', {
+      transactionTemplate: newTemplate,
+      amount: newAmount,
+      tag: newTag,
+      category: newCategory,
+      description: newDescription,
+      isTodo: newIsTodo,
+      assistantCurrency: newAssistantCurrency,
+    })
+  },
+)
 
 // -----
 </script>

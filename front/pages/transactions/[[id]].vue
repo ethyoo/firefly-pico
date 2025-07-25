@@ -2,7 +2,7 @@
   <div class="app-form">
     <app-top-toolbar>
       <template #right>
-        <app-button-list-add v-if="addButtonText" @click="onNew" />
+        <app-button-list-add v-if="itemId" @click="onNew" />
       </template>
     </app-top-toolbar>
 
@@ -24,7 +24,6 @@
           v-model:currencyForeign="currencyForeign"
           :currency="sourceCurrency"
           :isForeignAmountVisible="isForeignAmountVisible"
-          ref="refAmount"
           name="amount"
           :style="getStyleForField(transactionFormField.amount)"
           :disabled="isSplitTransaction"
@@ -84,16 +83,7 @@
           </div>
         </div>
 
-        <app-field
-          v-model="notes"
-          :icon="TablerIconConstants.fieldText1"
-          :label="$t('notes')"
-          :placeholder="$t('notes')"
-          type="textarea"
-          rows="1"
-          autosize
-          :style="getStyleForField(transactionFormField.notes)"
-        />
+        <transaction-note-field v-model="notes" :style="getStyleForField(transactionFormField.notes)" />
 
         <budget-select v-model="budget" :style="getStyleForField(transactionFormField.budget)" />
       </van-cell-group>
@@ -139,19 +129,17 @@ import Category from '~/models/Category'
 import Tag from '~/models/Tag'
 import { isStringEmpty } from '~/utils/DataUtils'
 import TablerIconConstants from '~/constants/TablerIconConstants'
-import { animateTransactionForm } from '~/utils/AnimationUtils.js'
+import { animateTransactionAmountOperatorButtons, animateTransactionForm } from '~/utils/AnimationUtils.js'
 import tag from '~/models/Tag'
-import { addDays, endOfMonth, startOfMonth } from 'date-fns'
+import { addDays, endOfMonth, getHours, getMinutes, startOfMonth, startOfToday } from 'date-fns'
 import TransactionRepository from '~/repository/TransactionRepository.js'
 import TransactionTransformer from '~/transformers/TransactionTransformer.js'
 import TransactionSplitBadge from '~/components/transaction/transaction-split-badge.vue'
 import { useI18n } from '#imports'
 import { transactionFormField } from '~/constants/TransactionConstants.js'
 import { rule } from '~/utils/ValidationUtils.js'
-
-const refAmount = ref(null)
-
-// ------------------------------------
+import Currency from '~/models/Currency.js'
+import TransactionNoteField from '~/components/transaction/transaction-note-field.vue'
 
 let dataStore = useDataStore()
 let profileStore = useProfileStore()
@@ -160,7 +148,7 @@ const route = useRoute()
 const form = ref(null)
 const assistantText = ref('')
 
-let { itemId, item, isEmpty, addButtonText, isLoading, onClickBack, saveItem, onDelete, onNew, onValidationError, formName } = useForm({
+let { itemId, item, saveItem, onDelete, onNew, onValidationError, formName } = useForm({
   form: form,
   routeList: RouteConstants.ROUTE_TRANSACTION_LIST,
   routeForm: RouteConstants.ROUTE_TRANSACTION_ID,
@@ -203,7 +191,7 @@ const isForeignAmountVisible = computed(() => {
     Account.getType(accountSource.value)?.fireflyCode === Account.types.asset.fireflyCode &&
     Account.getType(accountDestination.value)?.fireflyCode === Account.types.asset.fireflyCode &&
     Account.getCurrency(accountSource.value)?.id !== Account.getCurrency(accountDestination.value)?.id
-  return !!(newTransactionWithDefaultCurrency || areTypeAssetsWithDifferentCurrencies || currencyForeign.value)
+  return !!(newTransactionWithDefaultCurrency || areTypeAssetsWithDifferentCurrencies || currencyForeign.value || amountForeign.value)
 })
 
 //
@@ -215,9 +203,8 @@ const onSubDay = () => {
 }
 
 const onToday = () => {
-  const today = new Date()
-  let newDate = new Date(date.value)
-  newDate.setFullYear(today.getFullYear(), today.getMonth(), today.getDate())
+  let newDate = startOfToday()
+  newDate.setHours(getHours(date.value), getMinutes(date.value), 0)
   date.value = newDate
 }
 
@@ -253,6 +240,7 @@ const onTransactionTemplateSelected = async (transactionTemplate) => {
   category.value = transactionTemplate.category
   notes.value = transactionTemplate.notes
   tags.value = transactionTemplate.tags
+  budget.value = transactionTemplate.budget
 }
 
 watch(category, async (newValue) => {
@@ -277,11 +265,7 @@ watch(tags, async (newValue) => {
 
   if (profileStore.copyTagToCategory && !category.value) {
     for (let tagName of sortedTagNames) {
-      let foundCategory = dataStore.categoryList.find((category) => {
-        let categoryName = Category.getDisplayName(category).toLowerCase()
-
-        return tagName === categoryName
-      })
+      let foundCategory = dataStore.categoryList.find((category) => tagName === Category.getDisplayName(category).toLowerCase())
       if (foundCategory) {
         category.value = foundCategory
         break
@@ -291,41 +275,32 @@ watch(tags, async (newValue) => {
 })
 
 const resetFormFields = () => {
-  accountSource.value = isTypeIncome.value ? profileStore.defaultAccountDestination : profileStore.defaultAccountSource
-  accountDestination.value = isTypeIncome.value ? profileStore.defaultAccountSource : profileStore.defaultAccountDestination
-  tags.value = []
-  category.value = null
-  description.value = ''
+  item.value = new Transaction().getEmpty()
 }
 
-const onAssistant = async ({ tag: newTag, category: newCategory, transactionTemplate: transactionTemplate, amount: newAmount, description: newDescription, isTodo: newIsTodo }) => {
+const onAssistant = async ({ tag: newTag, category: newCategory, transactionTemplate: transactionTemplate, amount: newAmount, description: newDescription, isTodo: newIsTodo, assistantCurrency }) => {
   resetFormFields()
 
-  if (newTag) {
-    tags.value = Tag.getTagWithParents(newTag)
+  newTag && (tags.value = Tag.getTagWithParents(newTag))
+  newIsTodo && dataStore.tagTodo && (tags.value = [...tags.value, dataStore.tagTodo])
+  newCategory && (category.value = newCategory)
+  transactionTemplate ? await onTransactionTemplateSelected(transactionTemplate) : (type.value = Transaction.types.expense)
+
+  if (newAmount && newAmount > 0) {
+    if (!assistantCurrency || !accountSource.value || Account.getCurrencyCode(accountSource.value) === Currency.getCode(assistantCurrency)) {
+      amount.value = newAmount
+    } else {
+      amountForeign.value = newAmount
+      currencyForeign.value = assistantCurrency
+      // Attempt to compute "amount" via exchange rate
+      if (accountSource.value) {
+        let sourceAccountDecimalPlaces = Account.getCurrencyDecimalPlaces(accountSource.value)
+        amount.value = convertCurrency(amountForeign.value, Currency.getCode(currencyForeign.value), Account.getCurrencyCode(accountSource.value)).toFixed(sourceAccountDecimalPlaces)
+      }
+    }
   }
 
-  if (newIsTodo && dataStore.tagTodo) {
-    tags.value = [...tags.value, dataStore.tagTodo]
-  }
-
-  if (newCategory) {
-    category.value = newCategory
-  }
-
-  if (transactionTemplate) {
-    await onTransactionTemplateSelected(transactionTemplate)
-  } else {
-    type.value = Transaction.types.expense
-  }
-
-  if (newAmount) {
-    amount.value = newAmount
-  }
-
-  if (newDescription) {
-    description.value = newDescription
-  }
+  newDescription && (description.value = newDescription)
 }
 
 const isTypeExpense = computed(() => isEqual(type.value, Transaction.types.expense))

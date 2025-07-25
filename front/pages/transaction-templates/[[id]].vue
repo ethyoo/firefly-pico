@@ -2,7 +2,7 @@
   <div class="app-form">
     <app-top-toolbar>
       <template #right>
-        <app-button-list-add v-if="addButtonText" @click="onNew" />
+        <app-button-list-add v-if="itemId" @click="onNew" />
       </template>
     </app-top-toolbar>
 
@@ -33,6 +33,9 @@
         <category-select v-model="category" />
 
         <tag-select v-model="tags" />
+
+        <budget-select v-model="budget" />
+
 
         <app-field v-model="notes" :label="$t('notes')" type="textarea" :icon="TablerIconConstants.fieldText1" rows="1" autosize />
       </van-cell-group>
@@ -65,6 +68,7 @@ import TransactionTransformer from '~/transformers/TransactionTransformer'
 import { areIntEqual } from '~/utils/DataUtils'
 import TablerIconConstants from '~/constants/TablerIconConstants.js'
 import { rule } from '~/utils/ValidationUtils.js'
+import { transactionFormField } from '~/constants/TransactionConstants.js'
 
 const refAmount = ref(null)
 
@@ -88,7 +92,7 @@ const onEvent = (event, payload) => {
   }
 }
 
-let { itemId, item, isEmpty, addButtonText, isLoading, onClickBack, saveItem, onDelete, onNew, onValidationError, formName } = useForm({
+let { itemId, item, saveItem, onDelete, onNew, onValidationError, formName } = useForm({
   form: form,
   routeList: RouteConstants.ROUTE_TRANSACTION_TEMPLATE_LIST,
   routeForm: RouteConstants.ROUTE_TRANSACTION_TEMPLATE_ID,
@@ -98,12 +102,12 @@ let { itemId, item, isEmpty, addButtonText, isLoading, onClickBack, saveItem, on
 
 const voicesList = ref([])
 
-const { name, extra_names, amount, date, tags, description, notes, account_source, account_destination, category, type } = generateChildren(item, [
+const { name, extra_names, amount, tags, description, notes, account_source, account_destination, category, type, budget } = generateChildren(item, [
   { computed: 'type', parentKey: `type` },
   { computed: 'name', parentKey: `name` },
   { computed: 'extra_names', parentKey: `extra_names` },
   { computed: 'amount', parentKey: `amount` },
-  { computed: 'date', parentKey: `date` },
+  { computed: 'budget', parentKey: `budget` },
   { computed: 'description', parentKey: `description` },
   { computed: 'notes', parentKey: `notes` },
   { computed: 'account_source', parentKey: `account_source` },

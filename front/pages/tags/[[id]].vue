@@ -2,7 +2,7 @@
   <div class="app-form">
     <app-top-toolbar>
       <template #right>
-        <app-button-list-add v-if="addButtonText" @click="onNew" />
+        <app-button-list-add v-if="itemId" @click="onNew" />
       </template>
     </app-top-toolbar>
 
@@ -13,9 +13,9 @@
     <van-form ref="form" :name="formName" @submit="saveItem" @failed="onValidationError" class="">
       <van-cell-group inset>
         <app-field v-model="tag" name="name" :label="$t('name')" rows="1" autosize :icon="TablerIconConstants.fieldText2" :rules="[rule.required()]" required />
-
         <tag-select :label="$t('tag_page.parent_tag')" v-model="parentTag" :isMultiSelect="false" />
-
+        <app-field v-model="description" name="description" :label="$t('description')" autosize :icon="TablerIconConstants.fieldText1" />
+        <app-date v-model="date" :label="$t('tag_page.end_date')" :icon="TablerIconConstants.settingsUserPreferencesDate" />
         <icon-select v-model="icon" />
 
         <app-boolean v-model="isTodo">
@@ -64,7 +64,7 @@ const route = useRoute()
 const form = ref(null)
 
 const fetchItem = async () => {
-  let tag = cloneDeep(dataStore.tagDictionaryById[itemId.value])
+  let tag = cloneDeep(dataStore.tagDictionaryById[useRoute().params.id])
 
   let parentTagId = get(tag, 'attributes.parent_id')
   if (parentTagId) {
@@ -91,7 +91,7 @@ const resetFields = () => {
   tag.value = ''
 }
 
-let { itemId, item, isEmpty, addButtonText, isLoading, onClickBack, saveItem, onDelete, onNew, onValidationError, formName } = useForm({
+let { itemId, item, saveItem, onDelete, onNew, onValidationError, formName } = useForm({
   form: form,
   routeList: RouteConstants.ROUTE_TAG_LIST,
   routeForm: RouteConstants.ROUTE_TAG_ID,
@@ -101,8 +101,10 @@ let { itemId, item, isEmpty, addButtonText, isLoading, onClickBack, saveItem, on
   onEvent: onEvent,
 })
 
-const { tag, parentTag, icon, isTodo } = generateChildren(item, [
+const { tag, description, date, parentTag, icon, isTodo } = generateChildren(item, [
   { computed: 'tag', parentKey: 'attributes.tag' },
+  { computed: 'description', parentKey: 'attributes.description' },
+  { computed: 'date', parentKey: 'attributes.date' },
   { computed: 'parentTag', parentKey: 'attributes.parentTag' },
   { computed: 'icon', parentKey: 'attributes.icon' },
   { computed: 'isTodo', parentKey: 'attributes.is_todo' },

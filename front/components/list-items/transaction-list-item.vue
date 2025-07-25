@@ -9,7 +9,7 @@
             </div>
 
             <div class="flex-center-vertical gap-2">
-              <transaction-type-dot :transactionType="transactionType" class="ml-5" />
+              <!--              <transaction-type-dot :transactionType="transactionType" class="ml-5" />-->
               <div v-if="description" class="list-item-title">{{ description }}</div>
             </div>
 
@@ -29,7 +29,7 @@
 
             <div v-if="notes && props.isDetailedMode" class="list-item-subtitle" :style="getStyleForField(transactionListField.notes)">
               <app-icon :icon="TablerIconConstants.fieldText1" :size="20" />
-              {{ notes }}
+              <span class="notes-markdown" v-html="notes" />
             </div>
 
             <div v-if="tags && props.isDetailedMode" class="tags-container" :style="getStyleForField(transactionListField.tags)">
@@ -38,16 +38,24 @@
                 <div class="list-item-subtitle ml-5">{{ Tag.getDisplayNameEllipsized(tag, 10) }}</div>
               </div>
             </div>
+
+            <div v-if="budget && props.isDetailedMode" class="list-item-subtitle" :style="getStyleForField(transactionListField.budget)">
+              <app-icon :icon="TablerIconConstants.budget" :size="20" />
+              {{ Budget.getDisplayName(budget) }}
+            </div>
           </div>
 
           <div class="third_column">
-            <div class="font-weight-700 text-size-16">{{ transactionAmount }} {{ transactionCurrency }}</div>
+            <div class="font-weight-700 text-size-14" :style="amountStyle">{{ transactionAmount }} {{ transactionCurrency }}</div>
 
             <transaction-list-item-hero-icon v-if="props.isDetailedMode" :value="props.value" />
 
-            <div class="flex-center-vertical text-muted text-size-12">
-              {{ dateFormatted }}
+            <div class="display-flex flex-column align-items-end text-size-12 gap-1 line-height-normal mt-1">
+              <div>{{ dateFormatted }}</div>
+              <div class="text-muted">{{ timeAgo }}</div>
             </div>
+
+            <div class="flex-center-vertical text-muted text-size-12 gap-1"></div>
           </div>
         </div>
       </template>
@@ -60,18 +68,21 @@
 </template>
 
 <script setup>
-import _, { get, isEqual } from 'lodash'
-import Category from '../../models/Category.js'
+import { capitalize, get, head, isEqual } from 'lodash'
+import Category from '@/models/Category.js'
 import DateUtils from '~/utils/DateUtils'
 import { format } from 'date-fns'
 import Transaction from '~/models/Transaction'
+import Budget from '~/models/Budget.js'
 import { useClickWithoutSwipe } from '~/composables/useClickWithoutSwipe'
 import TablerIconConstants from '~/constants/TablerIconConstants'
-import Tag from '../../models/Tag.js'
+import Tag from '@/models/Tag.js'
 import Account from '~/models/Account.js'
 import TransactionListItemHeroIcon from '~/components/list-items/transaction-list-item-hero-icon.vue'
 import TransactionSplitBadge from '~/components/transaction/transaction-split-badge.vue'
 import { transactionListField } from '~/constants/TransactionConstants.js'
+import { marked } from 'marked'
+import { formatTimeAgo } from '@vueuse/core'
 
 const props = defineProps({
   value: Object,
@@ -84,18 +95,17 @@ const dataStore = useDataStore()
 
 const emit = defineEmits(['onEdit', 'onDelete'])
 
-const transactions = computed(() => _.get(props.value, 'attributes.transactions', []))
-const firstTransaction = computed(() => _.head(transactions.value))
-const transactionType = computed(() => _.get(firstTransaction.value, 'type', ' - '))
+const transactions = computed(() => get(props.value, 'attributes.transactions', []))
+const firstTransaction = computed(() => head(transactions.value))
+const transactionType = computed(() => get(firstTransaction.value, 'type', ' - '))
 
 const isSplitPayment = computed(() => transactions.value.length > 1)
 
 const displayedAccounts = computed(() => {
-  return [sourceAccount.value, destinationAccount.value].filter(item => !!item)
+  return [sourceAccount.value, destinationAccount.value].filter((item) => !!item)
 })
 
 const description = computed(() => get(props.value, 'attributes.group_title') ?? get(firstTransaction.value, 'description') ?? ' - ')
-// const category = computed(() => _.get(firstTransaction.value, 'category'))
 const categories = computed(() => {
   return transactions.value
     .map((item) => item.category)
@@ -103,7 +113,10 @@ const categories = computed(() => {
     .filter(Boolean)
     .uniqBy('id')
 })
-const notes = computed(() => _.get(firstTransaction.value, 'notes', ' - '))
+const notes = computed(() => {
+  let result = get(firstTransaction.value, 'notes')
+  return result ? marked(result) : null
+})
 
 const tags = computed(() => {
   return transactions.value
@@ -112,6 +125,8 @@ const tags = computed(() => {
     .filter(Boolean)
     .uniqBy('id')
 })
+
+const budget = computed(() => get(firstTransaction.value, 'budget'))
 
 const isTodo = computed(() => tags.value.some((tag) => get(tag, 'attributes.is_todo')))
 const cellClass = computed(() => ({
@@ -122,22 +137,18 @@ const visibleTags = computed(() => {
   return tags.value.slice(0, 4)
 })
 
-// const transactionAmount = computed(() => _.get(props.value, 'attributes.transactions.0.amount', ' - '))
+const amountSign = computed(() => (isTypeExpense.value ? '-' : isTypeIncome.value ? '+' : ''))
+const transactionAmount = computed(() => `${amountSign.value}${Transaction.getAmountFormatted(props.value)}`)
+const transactionCurrency = computed(() => get(firstTransaction.value, 'currency_symbol', ' - '))
 
-const transactionAmount = computed(() => Transaction.getAmountFormatted(props.value))
-const transactionCurrency = computed(() => _.get(firstTransaction.value, 'currency_symbol', ' - '))
+const isTypeExpense = computed(() => isEqual(transactionType.value, Transaction.types.expense))
+const isTypeIncome = computed(() => isEqual(transactionType.value, Transaction.types.income))
+const isTypeTransfer = computed(() => isEqual(transactionType.value, Transaction.types.transfer))
 
-const isTransactionExpense = computed(() => isEqual(transactionType.value, Transaction.types.expense))
-const isTransactionIncome = computed(() => isEqual(transactionType.value, Transaction.types.income))
-const isTransactionTransfer = computed(() => isEqual(transactionType.value, Transaction.types.transfer))
-
-const date = computed(() => DateUtils.autoToDate(_.get(firstTransaction.value, 'date')))
+const date = computed(() => DateUtils.autoToDate(get(firstTransaction.value, 'date')))
 const dateFormatted = computed(() => DateUtils.dateToUI(date.value))
-const dateMonth = computed(() => (date.value ? format(date.value, 'LLL').toUpperCase() : ''))
-const dateWeekdayName = computed(() => (date.value ? format(date.value, 'E').toUpperCase() : ''))
-const dateDayOfMonth = computed(() => {
-  return date.value ? format(date.value, 'dd') : ''
-})
+const dayOfWeek = computed(() => DateUtils.dateToString(date.value, 'EEEEEE'))
+const timeAgo = computed(() => capitalize(formatTimeAgo(date.value)))
 
 const destinationAccount = computed(() => {
   let destinationId = get(firstTransaction.value, 'destination_id')
@@ -166,6 +177,18 @@ const onEdit = async (e) => {
 const onDelete = async () => {
   emit('onDelete', props.value)
 }
+
+const amountStyle = computed(() => {
+  if (isTypeExpense.value) {
+    return `color: var(--expense2)`
+  }
+  if (isTypeIncome.value) {
+    return `color: var(--income1)`
+  }
+  if (isTypeTransfer.value) {
+    return `color: var(--transfer1)`
+  }
+})
 
 const swipeCell = ref(null)
 const clickWithoutSwipe = useClickWithoutSwipe({ swipeCell: swipeCell, onClick: onEdit })

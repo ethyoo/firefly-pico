@@ -1,55 +1,29 @@
 import { onMounted, ref } from 'vue'
-import _ from 'lodash'
+import { get, cloneDeep } from 'lodash'
 import UIUtils from '~/utils/UIUtils'
 import { next } from 'lodash/seq'
 
-// by convention, composable function names start with "use"
+export const useFormEvent = {
+  postSave: 'onPostSave',
+  postDelete: 'onPostDelete',
+}
+
 export function useForm(props) {
-  const { form } = props
-  const { titleAdd, titleEdit } = props
-  const { routeList, routeForm } = props
-  const { model, resetFields, onEvent } = props
-  const fetchItemExternal = props.fetchItem
+  const { routeList, routeForm, shouldFetchOnMount = true } = props
+  const { model, resetFields, onEvent, fetchItem: fetchItem_ } = props
 
   const transformer = model.getTransformer()
   const repository = model.getRepository()
 
-  // let dataStore = useDataStore()
   let profileStore = useProfileStore()
-  const route = useRoute()
 
-  const title = computed(() => (route.params.id ? titleEdit : titleAdd))
-
-  let itemId = ref(null)
   let formName = ref(`form-${crypto.randomUUID ? crypto.randomUUID() : Utils.getGUID()}`)
-
-  // let itemId = computed(() => route.params.id)
-
-  watch(
-    () => route.params.id,
-    async (newValue, oldValue) => {
-      itemId.value = newValue
-    },
-    { immediate: true },
-  )
 
   let isLoading = ref(false)
   let item = ref({})
+  let itemId = computed(() => item.value?.id)
+
   let fetchedItem = ref({})
-
-  const addButtonText = computed(() => {
-    if (itemId.value) {
-      return 'New'
-    }
-    if (!isEmpty.value) {
-      return 'Reset'
-    }
-    return null
-  })
-
-  const isEmpty = computed(() => {
-    return !name.value
-  })
 
   // --
 
@@ -57,57 +31,38 @@ export function useForm(props) {
     await navigateTo(routeList)
   }
 
-  async function initItem() {
-    // isLoading.value = true
-
-    if (itemId.value) {
-      await fetchItem()
-    } else {
-      item.value = model.getEmpty()
-    }
-
-    // isLoading.value = false
+  async function initItem({ id = null, value = null } = {}) {
+    let itemValue = value ? cloneDeep(value) : cloneDeep(model.getEmpty())
+    item.value = itemValue
+    id ? await fetchItem(id) : null
   }
 
-  async function fetchItem() {
-    if (fetchItemExternal) {
-      return fetchItemExternal()
+  async function fetchItem(id) {
+    if (fetchItem_) {
+      fetchItem_(id)
+      return
     }
+
     isLoading.value = true
-
-    // await new Promise(resolve => { setTimeout(() => resolve(), 3000) })
-
-    let newValue = await repository.getOne(itemId.value)
+    let newValue = await repository.getOne(id)
     newValue = newValue.data
-    // newValue = ("data" in newValue) ? newValue.data : newValue
-    if (transformer) {
-      newValue = transformer.transformFromApi(newValue)
-    }
-
+    newValue = transformer ? transformer.transformFromApi(newValue) : newValue
     item.value = newValue
-    fetchedItem.value = _.cloneDeep(newValue)
+    fetchedItem.value = cloneDeep(newValue)
 
     await nextTick()
     isLoading.value = false
   }
 
   async function saveItem() {
-    // form.submit()
     isLoading.value = true
 
     let newItem = item.value
-
-    if (transformer) {
-      newItem = transformer.transformToApi(newItem)
-    }
-
-    // Give it the option for outside manipulation
+    newItem = transformer ? transformer.transformToApi(newItem) : newItem
 
     let response = null
-    // let newItemId = newItem.id
-    let newItemId = itemId.value || newItem.id
-    if (newItemId) {
-      response = await repository.update(newItemId, newItem)
+    if (itemId.value) {
+      response = await repository.update(itemId.value, newItem)
     } else {
       response = await repository.insert(newItem)
     }
@@ -115,16 +70,15 @@ export function useForm(props) {
 
     if (ResponseUtils.isSuccess(response)) {
       UIUtils.showToastSuccess('Success')
-      onEvent ? onEvent('onPostSave', response) : null
+      onEvent?.(useFormEvent.postSave, response)
 
       // Should reset form
-      if (!newItemId && profileStore.resetFormOnCreate) {
+      if (!itemId.value && profileStore.resetFormOnCreate) {
         item.value = model.getEmpty()
         resetFields ? resetFields() : null
       } else {
-        let responseId = _.get(response, 'data.data.id')
-        itemId.value = _.get(response, 'data.data.id')
-        await navigateTo(`${routeForm}/${responseId}`)
+        let responseId = get(response, 'data.data.id')
+        routeForm ? await navigateTo(`${routeForm}/${responseId}`) : null
       }
     }
 
@@ -136,8 +90,8 @@ export function useForm(props) {
     if (result) {
       let response = await repository.delete(itemId.value)
       if (ResponseUtils.isSuccess(response)) {
-        onEvent ? onEvent('onPostDelete', response) : null
-        await navigateTo(routeList)
+        onEvent ? onEvent(useFormEvent.postDelete, response) : null
+        routeList ? await navigateTo(routeList) : null
         UIUtils.showToastSuccess(`Deleted successfully.`, 1000)
       }
     }
@@ -174,7 +128,9 @@ export function useForm(props) {
   }
 
   onMounted(async () => {
-    await initItem()
+    if (shouldFetchOnMount) {
+      await initItem({ id: useRoute().params?.id })
+    }
   })
 
   // ----- Loading indicators -----
@@ -187,9 +143,6 @@ export function useForm(props) {
     itemId,
     item,
     fetchedItem,
-    isEmpty,
-    title,
-    addButtonText,
     isLoading,
     onClickBack,
     onNew,
