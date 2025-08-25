@@ -1,6 +1,6 @@
 <template>
   <van-popup v-model:show="showDropdown" round position="bottom" :style="style">
-    <div class="h-100 display-flex flex-column qqq">
+    <div class="h-100 display-flex flex-column qqq" @touchstart.stop @touchmove.stop>
       <div class="flex-center-vertical m-10 mb-0">
         <div class="flex-1 text-center font-weight-600 text-size-18">{{ $t('filters.transaction_filters') }}</div>
       </div>
@@ -9,7 +9,9 @@
         <van-form @submit="onApplyFilters">
           <app-field class="flex-1" v-model="description" :label="$t('description')" :placeholder="$t('description')" />
 
-          <transaction-type-select v-model="transactionType" />
+          <template v-if="showType">
+            <transaction-type-select v-model="transactionType" />
+          </template>
 
           <div class="display-flex van-cell-fake pl-3 align-items-baseline">
             <div class="display-flex flex-column gap-3 align-items-center">
@@ -40,16 +42,18 @@
 
           <account-select v-model="account" :isMultiSelect="true" />
 
-          <div class="flex-center-vertical">
-            <app-date class="flex-1" v-model="dateStart" :label="$t('date_after')" />
-            <app-date class="flex-1" v-model="dateEnd" :label="$t('date_before')" />
-          </div>
+          <template v-if="showDate">
+            <div class="flex-center-vertical">
+              <app-date class="flex-1" v-model="dateStart" :label="$t('date_after')" />
+              <app-date class="flex-1" v-model="dateEnd" :label="$t('date_before')" />
+            </div>
 
-          <div class="px-3 flex-center-vertical gap-1">
-            <van-button size="small" @click="onSubMonth">{{ $t('sub_month') }}</van-button>
-            <van-button size="small" @click="onCurrentMonth">{{ $t('this_month') }}</van-button>
-            <van-button size="small" @click="onAddMonth">{{ $t('add_month') }}</van-button>
-          </div>
+            <div class="px-3 flex-center-vertical gap-1">
+              <van-button size="small" @click="onSubMonth">{{ $t('sub_month') }}</van-button>
+              <van-button size="small" @click="onCurrentMonth">{{ $t('this_month') }}</van-button>
+              <van-button size="small" @click="onAddMonth">{{ $t('add_month') }}</van-button>
+            </div>
+          </template>
 
           <div class="display-flex">
             <app-field class="flex-1" v-model="amountStart" :label="$t('amount_min')" :placeholder="$t('amount_min')" />
@@ -75,6 +79,14 @@ import { cloneDeep } from 'lodash'
 import { addMonths, endOfMonth, startOfMonth } from 'date-fns'
 
 const modelValue = defineModel({})
+const props = defineProps({
+  showDate: {
+    default: true,
+  },
+  showType: {
+    default: true,
+  },
+})
 
 const localModelValue = ref({})
 const { description, dateStart, dateEnd, amountStart, amountEnd, category, withoutCategory, tag, withoutTag, account, transactionType, withoutBudget, budget } = generateChildren(localModelValue, [
@@ -96,7 +108,7 @@ const showDropdown = ref(false)
 
 const style = computed(() => {
   return {
-    height: '95%',
+    height: '90%',
     // 'height': 'calc(100vh - 3rem)',
     // 'height': '100%',
     'padding-top': '4px',

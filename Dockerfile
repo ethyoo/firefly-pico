@@ -1,7 +1,7 @@
 FROM composer:2.2 AS composer_base
 
 #-----------------------------------------------------------------
-FROM alpine:3.20 AS base
+FROM alpine:3.22 AS base
 
 #Install packages
 RUN apk add --no-cache \
@@ -86,7 +86,8 @@ RUN tar --owner=www-data --group=www-data \
     --exclude=node_modules/shiki \
     --exclude=node_modules/@nuxt \
     --exclude=node_modules/@typescript-eslint \
-    --exclude=node_modules/@vue/devtools* \
+#     Temporarily. There's probably a bug in vue-router which references this dev plugin while in production mode
+#    --exclude=node_modules/@vue/devtools* \
     --exclude=node_modules/vant \
     --exclude=node_modules/mathjs \
     --exclude=node_modules/typescript \

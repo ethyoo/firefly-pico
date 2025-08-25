@@ -26,6 +26,8 @@ import BudgetRepository from '~/repository/BudgetRepository.js'
 import BudgetTransformer from '~/transformers/BudgetTransformer.js'
 import BudgetLimitTransformer from '~/transformers/BudgetLimitTransformer.js'
 import Currency from '~/models/Currency.js'
+import DateUtils from '~/utils/DateUtils.js'
+import { startOfTomorrow } from 'date-fns/startOfTomorrow'
 
 export const useDataStore = defineStore('data', {
   state: () => {
@@ -33,7 +35,7 @@ export const useDataStore = defineStore('data', {
       isLoading: false,
 
       dashboard: {
-        // month: startOfMonth(new Date()),
+        backendFilters: [],
         month: null,
         transactionsList: [],
         transactionsListLastWeek: [],
@@ -152,6 +154,33 @@ export const useDataStore = defineStore('data', {
       }, {})
     },
 
+    dashboardTransfersByCategory(state) {
+      return this.transactionsListTransfers.reduce((result, transaction) => {
+        const splits = Transaction.getSplits(transaction)
+        for (let split of splits) {
+          const categoryId = split.category_id
+          const oldTotal = get(result, categoryId, 0)
+          result[categoryId] = oldTotal + convertCurrency(split.amount, split.currency_code, Currency.getCode(state.dashboardCurrency))
+        }
+
+        return result
+      }, {})
+    },
+
+    dashboardTransfersByTag(state) {
+      return this.transactionsListTransfers.reduce((result, transaction) => {
+        let tags = Transaction.getTags(transaction)
+        let rootTag = tags.find((tag) => !get(tag, 'attributes.parent_id')) ?? head(tags)
+        let targetTags = state.dashboard.tagsWidgetModeOnlyRootTag ? [rootTag] : tags
+        for (let targetTag of targetTags) {
+          let tagId = get(targetTag, 'id', 0)
+          let oldTotal = get(result, tagId, 0)
+          result[tagId] = oldTotal + convertTransactionAmountToCurrency(transaction, Currency.getCode(state.dashboardCurrency))
+        }
+        return result
+      }, {})
+    },
+
     dashboardDateStart(state) {
       const profileStore = useProfileStore()
       if (!state.dashboard.month) {
@@ -233,7 +262,8 @@ export const useDataStore = defineStore('data', {
       if (this.totalIncomeThisMonth === 0) {
         return 0
       }
-      return ((this.transactionsListSavingsAmount * 1.0) / this.totalIncomeThisMonth) * 100
+      let percent = ((this.transactionsListSavingsAmount * 1.0) / this.totalIncomeThisMonth) * 100
+      return Math.max(percent, 0)
     },
 
     transactionsListExpense(state) {
@@ -395,15 +425,8 @@ export const useDataStore = defineStore('data', {
     async fetchDashboardTransactionsForInterval() {
       this.isLoadingDashboardTransactions = true
 
-      // let filters = [
-      //   { field: 'start', value: DateUtils.dateToString(this.dashboardDateStart) },
-      //   { field: 'end', value: DateUtils.dateToString(this.dashboardDateEnd) },
-      //   { field: 'type', value: 'income,expense,transfer' },
-      // ]
-      // const list = await new TransactionRepository().getAllWithMerge({ filters })
-
-      // TODO: Test this on user with larger Databases. Need to make sure the /search endpoint + filters is faster than all transaction with frontend filtering
       let filtersParts = [`date_after:${DateUtils.dateToString(this.dashboardDateStart)}`, `date_before:${DateUtils.dateToString(this.dashboardDateEnd)}`, ...getExcludedTransactionFilters()]
+      filtersParts = [...filtersParts, ...this.dashboard.backendFilters]
       let filters = [{ field: 'query', value: filtersParts.join(' ') }]
       let searchMethod = new TransactionRepository().searchTransaction
       let list = await new TransactionRepository().getAllWithMerge({ filters, getAll: searchMethod })
@@ -418,14 +441,8 @@ export const useDataStore = defineStore('data', {
       let startDate = DateUtils.dateToString(subDays(startOfDay(new Date()), 7))
       let endDate = DateUtils.dateToString(startOfDay(new Date()))
 
-      // let filters = [
-      //   { field: 'start', value: startDate },
-      //   { field: 'end', value: endDate },
-      //   { field: 'type', value: 'expense' },
-      // ]
-      // const list = await new TransactionRepository().getAllWithMerge({ filters })
-
       let filtersParts = [`date_after:${startDate}`, `date_after:${startDate}`, `type:withdrawal`, ...getExcludedTransactionFilters()]
+      filtersParts = [...filtersParts, ...this.dashboard.backendFilters]
       let filters = [{ field: 'query', value: filtersParts.join(' ') }]
       let searchMethod = new TransactionRepository().searchTransaction
       let list = await new TransactionRepository().getAllWithMerge({ filters, getAll: searchMethod })
@@ -486,10 +503,10 @@ export const useDataStore = defineStore('data', {
 
     async fetchAccounts() {
       this.isLoadingAccounts = true
-      let list = await new AccountRepository().getAllWithMerge()
-      // const allowedTypes = Object.values(Account.types).map(item => item.fireflyCode)
+      let filters = [{ field: 'date', value: DateUtils.dateToString(startOfTomorrow()) }]
+      let list = await new AccountRepository().getAllWithMerge({ filters })
       const allowedTypes = [Account.types.asset, Account.types.expense, Account.types.revenue, Account.types.liability].map((item) => item.fireflyCode)
-      list = list.filter((item) => allowedTypes.includes(get(item, 'attributes.type')))
+      list = list.filter((item) => allowedTypes.includes(get(item, 'attributes.type')) && Account.getIsActive(item))
       this.accountList = AccountTransformer.transformFromApiList(list)
       this.isLoadingAccounts = false
 
@@ -553,6 +570,15 @@ export const useDataStore = defineStore('data', {
     },
 
     // -----
+
+    async fetchDashboard() {
+      this.fetchAccounts()
+      this.fetchDashboardTransactionsForInterval()
+      this.fetchDashboardTransactionsForWeek()
+      this.fetchTransactionsWithTodos()
+      this.fetchExchangeRate()
+      this.fetchBudgets()
+    },
 
     // -----
   },

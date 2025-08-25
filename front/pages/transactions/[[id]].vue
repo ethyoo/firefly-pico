@@ -86,6 +86,8 @@
         <transaction-note-field v-model="notes" :style="getStyleForField(transactionFormField.notes)" />
 
         <budget-select v-model="budget" :style="getStyleForField(transactionFormField.budget)" />
+
+        <transaction-attachments-list :transaction="item" :style="getStyleForField(transactionFormField.attachments)" />
       </van-cell-group>
 
       <div style="margin: 16px; position: relative">
@@ -140,6 +142,9 @@ import { transactionFormField } from '~/constants/TransactionConstants.js'
 import { rule } from '~/utils/ValidationUtils.js'
 import Currency from '~/models/Currency.js'
 import TransactionNoteField from '~/components/transaction/transaction-note-field.vue'
+import TransactionAttachmentsList from '~/components/transaction/transaction-attachements/transaction-attachments-list.vue'
+import AttachmentRepository from '~/repository/AttachmentRepository.js'
+import AttachmentTransformer from '~/transformers/AttachmentTransformer.js'
 
 let dataStore = useDataStore()
 let profileStore = useProfileStore()
@@ -256,16 +261,17 @@ watch(tags, async (newValue) => {
   }
 
   // Give child tags more priority for more granularity
-  const sortedTagNames = sortByPath(newValue, 'level', false).map((tag) => Tag.getDisplayNameEllipsized(tag).toLowerCase())
+  const sortedTagNames = sortByPath(newValue, 'level', false).map((tag) => Tag.getDisplayNameEllipsized(tag))
 
   if (profileStore.copyTagToDescription && isStringEmpty(description.value)) {
     // The first one is the one with the highest level
-    description.value = head(sortedTagNames) ?? ''
+    let descriptionValue = head(sortedTagNames) ?? ''
+    description.value = profileStore.lowerCaseTransactionDescription ? descriptionValue.toLowerCase() : descriptionValue
   }
 
   if (profileStore.copyTagToCategory && !category.value) {
     for (let tagName of sortedTagNames) {
-      let foundCategory = dataStore.categoryList.find((category) => tagName === Category.getDisplayName(category).toLowerCase())
+      let foundCategory = dataStore.categoryList.find((category) => tagName.toLowerCase() === Category.getDisplayName(category).toLowerCase())
       if (foundCategory) {
         category.value = foundCategory
         break
@@ -416,5 +422,3 @@ const cloneTransactions = async () => {
   item.value = cloneItem
 }
 </script>
-
-<style></style>

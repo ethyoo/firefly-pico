@@ -16,9 +16,13 @@
 
         <dashboard-budgets :style="getStyleForCard(dashboardCard.budgets)" />
 
-        <dashboard-tag-totals :style="getStyleForCard(dashboardCard.expensesByTag)" />
+        <dashboard-tag-totals-expense :style="getStyleForCard(dashboardCard.expensesByTag)" />
 
-        <dashboard-category-totals :style="getStyleForCard(dashboardCard.expensesByCategory)" />
+        <dashboard-category-totals-expense :style="getStyleForCard(dashboardCard.expensesByCategory)" />
+
+        <dashboard-tag-totals-transfer :style="getStyleForCard(dashboardCard.transfersByTag)" />
+
+        <dashboard-category-totals-transfer :style="getStyleForCard(dashboardCard.transfersByCategory)" />
 
         <dashboard-todo-transactions :style="getStyleForCard(dashboardCard.todoTransactions)" />
 
@@ -27,6 +31,8 @@
         </app-card-info>
       </div>
     </van-pull-refresh>
+
+
   </div>
 </template>
 
@@ -34,26 +40,19 @@
 import { useToolbar } from '~/composables/useToolbar'
 import { debounce } from 'lodash/function'
 import UIUtils from '~/utils/UIUtils.js'
-import DashboardTagTotals from '~/components/dashboard/dashboard-tag-totals/dashboard-tag-totals.vue'
 import { animateDashboard } from '~/utils/AnimationUtils.js'
 import RouteConstants from '~/constants/RouteConstants.js'
 import { dashboardCard } from '~/constants/DashboardConstants.js'
 import TablerIconConstants from '~/constants/TablerIconConstants.js'
 import { useSwipe } from '@vueuse/core'
 import { addMonths } from 'date-fns'
-import DashboardControlButtons from '~/components/dashboard/dashboard-controls/dashboard-control-buttons.vue'
 
 const dataStore = useDataStore()
 const profileStore = useProfileStore()
 const { isLoadingAccounts } = storeToRefs(dataStore)
 
 const onRefresh = () => {
-  dataStore.fetchAccounts()
-  dataStore.fetchDashboardTransactionsForInterval()
-  dataStore.fetchDashboardTransactionsForWeek()
-  dataStore.fetchTransactionsWithTodos()
-  dataStore.fetchExchangeRate()
-  dataStore.fetchBudgets()
+  dataStore.fetchDashboard()
 }
 
 const onRefreshDebounce = debounce(onRefresh, 200)
