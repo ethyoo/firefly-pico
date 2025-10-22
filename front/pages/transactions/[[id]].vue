@@ -230,9 +230,7 @@ const onTransactionTemplateSelected = async (transactionTemplate) => {
     return
   }
   type.value = transactionTemplate.type
-  // We have a watch on type that swaps source/destination accounts for type Income. We don't want anything reversed when using templates
-  // Maybe in the future remove the nextTick below rework the logic inside the watch...
-  await nextTick()
+
   amount.value = transactionTemplate.amount
   if (transactionTemplate.account_source_id) {
     accountSource.value = dataStore.accountDictionary[transactionTemplate.account_source_id]
@@ -241,6 +239,7 @@ const onTransactionTemplateSelected = async (transactionTemplate) => {
   if (transactionTemplate.account_destination_id) {
     accountDestination.value = dataStore.accountDictionary[transactionTemplate.account_destination_id]
   }
+
   description.value = transactionTemplate.description
   category.value = transactionTemplate.category
   notes.value = transactionTemplate.notes
@@ -307,6 +306,7 @@ const onAssistant = async ({ tag: newTag, category: newCategory, transactionTemp
   }
 
   newDescription && (description.value = newDescription)
+  attemptAccountsFix()
 }
 
 const isTypeExpense = computed(() => isEqual(type.value, Transaction.types.expense))
@@ -370,13 +370,15 @@ watch(type, (newValue, oldValue) => {
   if (itemId.value) {
     return
   }
-  // For type income we should reverse the accounts
-  if (newValue?.code === Transaction.types.income.code || oldValue?.code === Transaction.types.income.code) {
-    let temp = accountSource.value
-    accountSource.value = accountDestination.value
-    accountDestination.value = temp
-  }
+  attemptAccountsFix()
 })
+
+// Check if source / destination accounts still make sense and attempt to fix them :)
+const attemptAccountsFix = () => {
+  let { source, destination } = Transaction.attemptAccountFixOnTypeChange(type.value, accountSource.value, accountDestination.value)
+  accountSource.value = source
+  accountDestination.value = destination
+}
 
 watch(description, (newValue) => {
   newValue = newValue ?? ''
