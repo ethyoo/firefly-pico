@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { StorageSerializers, useLocalStorage } from '@vueuse/core'
 import * as LanguageConstants from '~/constants/LanguageConstants'
 import DateUtils from '~/utils/DateUtils'
-import { cloneDeep, get, head, omit } from 'lodash'
+import { cloneDeep, get, head, keyBy, omit } from 'lodash'
 import { transactionFormFieldList, transactionListFieldList, transactionListHeroIcon, transactionListHeroIconList } from '~/constants/TransactionConstants.js'
 import { NUMBER_FORMAT } from '~/utils/NumberUtils.js'
 import ProfileRepository from '~/repository/ProfileRepository'
@@ -82,7 +82,23 @@ export const useProfileStore = defineStore('profile', {
     }
   },
 
-  getters: {},
+  getters: {
+    profileDictionary(state) {
+      return keyBy(state.profileList, 'id')
+    },
+
+    activeProfile(state) {
+      return this.profileDictionary[state.profileActiveId]
+    },
+
+    shortProfileName(state) {
+      if (!this.activeProfile || state.profileList.length <= 1) {
+        return null
+      }
+      const profileName = this.activeProfile.name.toLowerCase()
+      return profileName.substring(0, 3)
+    },
+  },
 
   actions: {
     setProfile(profile) {
@@ -113,11 +129,13 @@ export const useProfileStore = defineStore('profile', {
 
       const response = await new ProfileRepository().getAll()
       let responseData = response.data ?? []
-
       this.profileList = responseData
-      let activeProfile = this.profileActiveId ? responseData.find((item) => item.id === this.profileActiveId) : null
-      activeProfile = activeProfile ?? head(responseData)
-      this.setProfile(activeProfile)
+
+      if (responseData.length > 0) {
+        let activeProfile = this.profileActiveId ? responseData.find((item) => item.id === this.profileActiveId) : null
+        activeProfile = activeProfile ?? head(responseData)
+        this.setProfile(activeProfile)
+      }
 
       this.isLoading = false
       this.migrateProfile()
